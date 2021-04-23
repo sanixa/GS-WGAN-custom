@@ -9,9 +9,9 @@ RESULT_DIR = './../results'
 def parse_arguments():
     parser = argparse.ArgumentParser()
     parser.add_argument('--random_seed', '-s', type=int, default=1, help='random seed')
-    parser.add_argument('--dataset', '-data', type=str, default='mnist', choices=['mnist', 'fashionmnist'],
+    parser.add_argument('--dataset', '-data', type=str, default='mnist', choices=['mnist', 'fashionmnist', 'cifar_100', 'cifar_10'],
                         help=' dataset name')
-    parser.add_argument('--num_discriminators', '-ndis', type=int, default=1000, help='number of discriminators')
+    parser.add_argument('--num_discriminators', '-ndis', type=int, default=100, help='number of discriminators')
     parser.add_argument('--noise_multiplier', '-noise', type=float, default=1.07, help='noise multiplier')
     parser.add_argument('--z_dim', '-zdim', type=int, default=10, help='latent code dimensionality')
     parser.add_argument('--model_dim', '-mdim', type=int, default=64, help='model dimensionality')
@@ -31,11 +31,12 @@ def parse_arguments():
     parser.add_argument('--load_dir', '-ldir', type=str, help='checkpoint dir (for loading pre-trained models)')
     parser.add_argument('--pretrain', action='store_true', default=False, help='if performing pre-training')
     parser.add_argument('--num_gpus', '-ngpus', type=int, default=1, help='number of gpus')
-    parser.add_argument('--gen_arch', '-gen', type=str, default='ResNet', choices=['DCGAN', 'ResNet'],
+    parser.add_argument('--gen_arch', '-gen', type=str, default='ResNet', choices=['DCGAN', 'ResNet', 'custom'],
                         help='generator architecture')
     parser.add_argument('--run', '-run', type=int, default=1, help='index number of run')
     parser.add_argument('--exp_name', '-name', type=str,
                         help='output folder name; will be automatically generated if not specified')
+    parser.add_argument('--dp', '-dp', type=int, default=1, help='usage of DP')
     args = parser.parse_args()
     return args
 
@@ -48,7 +49,7 @@ def save_config(args):
     '''
     ### set up experiment name
     if args.exp_name is None:
-        exp_name = '{}_Ndis{}_Noise{}_Zdim{}_Mdim{}_BS{}_Lgp{}_Lep{}_Diters{}_{}_Run{}'.format(
+        exp_name = '{}_Ndis{}_Noise{}_Zdim{}_Mdim{}_BS{}_Lgp{}_Lep{}_Diters{}_{}_Run{}_usageofDP{}'.format(
             args.gen_arch,
             args.num_discriminators,
             args.noise_multiplier,
@@ -59,7 +60,8 @@ def save_config(args):
             args.L_epsilon,
             args.critic_iters,
             args.latent_type,
-            args.run)
+            args.run,
+            args.dp)
         args.exp_name = exp_name
 
     if args.pretrain:

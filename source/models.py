@@ -123,6 +123,49 @@ class GeneratorResNet(nn.Module):
         output = torch.reshape(output, [-1, IMG_H * IMG_W])
         return output
 
+class GeneratorResNet_cifar10(nn.Module):
+    def __init__(self, z_dim=10, model_dim=64, num_classes=10, outact=nn.Sigmoid()):
+        super(GeneratorResNet_cifar10, self).__init__()
+
+        self.model_dim = model_dim
+        self.z_dim = z_dim
+        self.num_classes = num_classes
+        self.IMG_C = 3
+        self.IMG_H, self.IMG_W = 32,32
+
+        fc = SpectralNorm(nn.Linear(z_dim + num_classes, 4 * 4 * 4 * model_dim))
+        block1 = GBlock(256, 128)
+        block2 = GBlock(128, 64)
+        block3 = GBlock(64, 128)
+        block4 = GBlock(128, 256)
+        block5 = GBlock(256, 512)
+        output = SpectralNorm(nn.Conv2d(512, self.IMG_C, kernel_size=3, padding=1))
+
+        self.block1 = block1
+        self.block2 = block2
+        self.block3 = block3
+        self.block4 = block4
+        self.block5 = block5
+        self.fc = fc
+        self.output = output
+        self.relu = nn.ReLU()
+        self.outact = outact
+
+    def forward(self, z, y):
+        y_onehot = one_hot_embedding(y, self.num_classes)
+        z_in = torch.cat([z, y_onehot], dim=1)
+        output = self.fc(z_in)
+        output = output.view(-1, 4 * self.model_dim, 4, 4)
+        output = self.relu(output)
+        output = pixel_norm(output)
+        output = self.block1(output)
+        output = self.block2(output)
+        output = self.block3(output)
+        output = self.block4(output)
+        output = self.block5(output)
+        output = self.outact(self.output(output))
+        output = torch.reshape(output, [-1, 3* self.IMG_H * self.IMG_W])
+        return output
 
 class DiscriminatorDCGAN(nn.Module):
     def __init__(self, model_dim=64, num_classes=10, if_SN=True):
@@ -184,3 +227,235 @@ class DiscriminatorDCGAN(nn.Module):
         gradients_norm = gradients.norm(2, dim=1)
         gradient_penalty = ((gradients_norm - 1) ** 2).mean() * L_gp
         return gradient_penalty
+
+class DiscriminatorDCGAN_cifar10(nn.Module):
+    def __init__(self, model_dim=64, num_classes=10, if_SN=True):
+        super(DiscriminatorDCGAN_cifar10, self).__init__()
+        self.IMG_W, self.IMG_H = 32, 32 
+        self.IMG_C = 3
+        self.model_dim = model_dim
+        self.num_classes = num_classes
+
+        if if_SN:
+            self.conv1 = SpectralNorm(nn.Conv2d(self.IMG_C, model_dim, 5, stride=2, padding=2))
+            self.conv2 = SpectralNorm(nn.Conv2d(model_dim, model_dim * 2, 5, stride=2, padding=2))
+            self.conv3 = SpectralNorm(nn.Conv2d(model_dim * 2, model_dim * 4, 5, stride=2, padding=2))
+            self.linear = SpectralNorm(nn.Linear(4 * 4 * 4 * model_dim, 1))
+            self.linear_y = SpectralNorm(nn.Embedding(num_classes, 4 * 4 * 4 * model_dim))
+        else:
+            self.conv1 = nn.Conv2d(1, model_dim, 5, stride=2, padding=2)
+            self.conv2 = nn.Conv2d(model_dim, model_dim * 2, 5, stride=2, padding=2)
+            self.conv3 = nn.Conv2d(model_dim * 2, model_dim * 4, 5, stride=2, padding=2)
+            self.linear = nn.Linear(4 * 4 * 4 * model_dim, 1)
+            self.linear_y = nn.Embedding(num_classes, 4 * 4 * 4 * model_dim)
+        self.relu = nn.ReLU()
+
+    def forward(self, input, y):
+        input = input.view(-1, 3, self.IMG_W, self.IMG_H)
+        h = self.relu(self.conv1(input))
+        h = self.relu(self.conv2(h))
+        h = self.relu(self.conv3(h))
+        h = h.view(-1, 4 * 4 * 4 * self.model_dim)
+        out = self.linear(h)
+        out += torch.sum(self.linear_y(y) * h, dim=1, keepdim=True)
+        return out.view(-1)
+
+    def calc_gradient_penalty(self, real_data, fake_data, y, L_gp, device):
+        '''
+        compute gradient penalty term
+        :param real_data:
+        :param fake_data:
+        :param y:
+        :param L_gp:
+        :param device:
+        :return:
+        '''
+
+        batchsize = real_data.shape[0]
+        real_data = real_data.to(device)
+        fake_data = fake_data.to(device)
+        y = y.to(device)
+        alpha = torch.rand(batchsize, 1)
+        alpha = alpha.to(device)
+
+        interpolates = alpha * real_data + ((1 - alpha) * fake_data)
+        interpolates = interpolates.to(device)
+        interpolates = autograd.Variable(interpolates, requires_grad=True)
+        disc_interpolates = self.forward(interpolates, y)
+
+        gradients = autograd.grad(outputs=disc_interpolates, inputs=interpolates,
+                                  grad_outputs=torch.ones(disc_interpolates.size()).to(device),
+                                  create_graph=True, retain_graph=True, only_inputs=True)[0]
+        gradients_norm = gradients.norm(2, dim=1)
+        gradient_penalty = ((gradients_norm - 1) ** 2).mean() * L_gp
+        return gradient_penalty
+
+class GeneratorCustomCNN(nn.Module):
+    def __init__(self, z_dim=10, outact=nn.Sigmoid()):
+        super(GeneratorCustomCNN, self).__init__()
+
+        self.z_dim = z_dim
+        self.num_classes = 100
+
+        fc1 = nn.Linear(self.z_dim +  self.num_classes, 256)
+        fc2 = nn.Linear(256, 256)
+        fc3 = nn.Linear(256, 2 * 2 * 128)
+        deconv1 = nn.ConvTranspose2d(128, 64, kernel_size = 5, stride=2)
+        deconv2 = nn.ConvTranspose2d(64, 32, kernel_size = 3, stride=2)
+        deconv3 = nn.ConvTranspose2d(32, 3, kernel_size = 3, stride=2, output_padding=1)
+        BN1 = nn.BatchNorm2d(64)
+        BN2 = nn.BatchNorm2d(32)
+        BN3 = nn.BatchNorm2d(3)
+
+        self.deconv1 = deconv1
+        self.deconv2 = deconv2
+        self.deconv3 = deconv3
+        self.fc1 = fc1
+        self.fc2 = fc2
+        self.fc3 = fc3
+        self.relu = nn.ReLU()
+        #self.unpool = nn.MaxUnpool2d(2, stride=2)
+        self.BN1 = BN1
+        self.BN2 = BN2
+        self.BN3 = BN3
+        self.dropout = torch.nn.Dropout(p=0.2)
+        #self.outact = outact
+
+    def forward(self, z, y):
+
+        y_onehot = one_hot_embedding(y, self.num_classes)
+        z_in = torch.cat([z, y_onehot], dim=1)
+        output = self.fc1(z_in)
+        output = self.relu(output)
+        output = self.fc2(output)
+        output = self.relu(output)
+        output = self.fc3(output)
+        output = self.relu(output)
+        output = output.view(-1, 128, 2, 2)
+
+        output = self.dropout(output)
+
+        output = self.deconv1(output)
+        output = self.BN1(output)
+        output = self.relu(output)
+        output = self.deconv2(output)
+        output = self.BN2(output)
+        output = self.relu(output)
+        output = self.deconv3(output)
+        output = self.BN3(output)
+        output = self.relu(output)
+
+        return output.view(-1, 32 * 32 * 3)
+
+
+class DiscriminatorCustomCNN(nn.Module):
+    def __init__(self):
+        super(DiscriminatorCustomCNN, self).__init__()
+
+
+        self.num_classes = 100
+        self.layer1 = nn.Sequential(
+            nn.Conv2d(3, 32, kernel_size=3, stride=1),
+            nn.BatchNorm2d(32),
+            nn.ReLU(),
+            #TemperedSigmoid(),
+            nn.MaxPool2d(kernel_size=2, stride=2))
+        self.layer2 = nn.Sequential(
+            nn.Conv2d(32, 64, kernel_size=3, stride=1),
+            nn.BatchNorm2d(64),
+            nn.ReLU(),
+            #TemperedSigmoid(),
+            nn.MaxPool2d(kernel_size=2, stride=2))
+        self.layer3 = nn.Sequential(
+            nn.Conv2d(64, 128, kernel_size=3, stride=1),
+            nn.BatchNorm2d(128),
+            nn.ReLU(),
+            #TemperedSigmoid(),
+            nn.MaxPool2d(kernel_size=2, stride=2))
+        self.fc1 = nn.Linear(2 * 2 * 128, 256)
+        self.fc2 = nn.Linear(256, 256)
+        self.fc3 = nn.Linear(256, self.num_classes)
+        self.dropout = torch.nn.Dropout(p=0.2)
+        self.relu = nn.ReLU()
+
+    def forward(self, input, y):
+
+        input = input.view(-1, 3, 32, 32)
+        out = self.layer1(input)
+        out = self.layer2(out)
+        out = self.layer3(out)
+        out = out.reshape(out.size(0), -1)
+        out = self.dropout(out)
+        out = self.fc1(out)
+        #out = TS(out)
+        out = F.relu(out)
+        out = self.fc2(out)
+        out = F.relu(out)
+        out = self.fc3(out)
+        return out
+
+
+    def calc_gradient_penalty(self, real_data, fake_data, y, L_gp, device):
+        '''
+        compute gradient penalty term
+        :param real_data:
+        :param fake_data:
+        :param y:
+        :param L_gp:
+        :param device:
+        :return:
+        '''
+
+        batchsize = real_data.shape[0]
+        real_data = real_data.to(device)
+        fake_data = fake_data.to(device)
+        y = y.to(device)
+        alpha = torch.rand(batchsize, 1)
+        alpha = alpha.to(device)
+
+        interpolates = alpha * real_data + ((1 - alpha) * fake_data)
+        interpolates = interpolates.to(device)
+        interpolates = autograd.Variable(interpolates, requires_grad=True)
+        disc_interpolates = self.forward(interpolates, y)
+
+        gradients = autograd.grad(outputs=disc_interpolates, inputs=interpolates,
+                                  grad_outputs=torch.ones(disc_interpolates.size()).to(device),
+                                  create_graph=True, retain_graph=True, only_inputs=True)[0]
+        gradients_norm = gradients.norm(2, dim=1)
+        gradient_penalty = ((gradients_norm - 1) ** 2).mean() * L_gp
+        return gradient_penalty
+
+class ResNetResidualBlock(nn.Module):
+    def __init__(self, in_channels, filters, kernel=3, downsampling=1, conv_shortcut=False, *args, **kwargs):
+        super().__init__()
+        self.in_channels = in_channels
+        self.kernel, self.downsampling = kernel, downsampling
+        self.conv_shortcut= conv_shortcut
+        self.activate = nn.ReLU()
+        self.shortcut = nn.Conv2d(self.in_channels, filters *4, kernel_size=1,
+                      stride=self.downsampling) if self.conv_shortcut else nn.MaxPool2d(kernel_size=1, stride=self.downsampling)
+
+        self.BN_1 = nn.BatchNorm2d(self.in_channels, eps=1.001e-5)
+        self.Conv_1 = nn.Conv2d(self.in_channels, filters, kernel_size=1, stride=1, bias=False)
+        self.BN_2 = nn.BatchNorm2d(filters, eps=1.001e-5)
+        self.zeroPad_1 = nn.ZeroPad2d((1,1,1,1))
+        self.Conv_2 = nn.Conv2d(filters, filters, kernel_size=self.kernel, stride=self.downsampling, bias=False)
+        self.BN_3 = nn.BatchNorm2d(filters, eps=1.001e-5)
+        self.Conv_3 = nn.Conv2d(filters , filters *4, kernel_size=1)
+        
+    def forward(self, x):
+        x = self.BN_1(x)
+        x = self.activate(x)
+
+        residual = self.shortcut(x)
+
+        x = self.Conv_1(x)
+        x = self.BN_2(x)
+        x = self.activate(x)
+        x = self.zeroPad_1(x)
+        x = self.Conv_2(x)
+        x = self.BN_3(x)
+        x = self.activate(x)
+        x = self.Conv_3(x)
+        x += residual
+        return x

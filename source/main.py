@@ -15,13 +15,15 @@ from models import *
 from utils import *
 
 from ops import exp_mov_avg
+#from torchsummary import summary
+from torchinfo import summary
 
-IMG_DIM = 784
-NUM_CLASSES = 10
+IMG_DIM = 768
+NUM_CLASSES = 100
 CLIP_BOUND = 1.
 SENSITIVITY = 2.
 DATA_ROOT = './../data'
-os.environ["CUDA_VISIBLE_DEVICES"] = "3, 4, 5"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0,2,3"
 
 ##########################################################
 ### hook functions
@@ -127,7 +129,7 @@ def main(args):
     latent_type = args.latent_type
     load_dir = args.load_dir
     save_dir = args.save_dir
-    if_dp = (noise_multiplier > 0.)
+    if_dp = (args.dp > 0.)
     gen_arch = args.gen_arch
     num_gpus = args.num_gpus
 
@@ -154,17 +156,24 @@ def main(args):
         raise NotImplementedError
 
     ### Set up models
+    print('gen_arch:' + gen_arch)
     if gen_arch == 'DCGAN':
         netG = GeneratorDCGAN(z_dim=z_dim, model_dim=model_dim, num_classes=10)
     elif gen_arch == 'ResNet':
         netG = GeneratorResNet(z_dim=z_dim, model_dim=model_dim, num_classes=10)
+    elif gen_arch == 'custom':
+        netG = GeneratorCustomCNN(z_dim=z_dim).to(device0)
+        
     else:
         raise ValueError
 
     netGS = copy.deepcopy(netG)
     netD_list = []
     for i in range(num_discriminators):
-        netD = DiscriminatorDCGAN()
+        if gen_arch == 'custom':
+            netD = DiscriminatorCustomCNN()
+        else:
+            netD = DiscriminatorDCGAN()
         netD_list.append(netD)
 
     ### Load pre-trained discriminators
@@ -194,22 +203,25 @@ def main(args):
         dataloader = datasets.MNIST
         trainset = dataloader(root=os.path.join(DATA_ROOT, 'MNIST'), train=True, download=True,
                               transform=transform_train)
+        IMG_DIM = 784
+        NUM_CLASSES = 10
     elif dataset == 'fashionmnist':
         dataloader = datasets.FashionMNIST
         trainset = dataloader(root=os.path.join(DATA_ROOT, 'FashionMNIST'), train=True, download=True,
                               transform=transform_train)
+    elif dataset == 'cifar_100':
+        dataloader = datasets.CIFAR100
+        trainset = dataloader(root=os.path.join(DATA_ROOT, 'CIFAR100'), train=True, download=True,
+                              transform=transform_train)
+        IMG_DIM = 3072
+        NUM_CLASSES = 100
     else:
         raise NotImplementedError
 
-    if load_dir is not None:
-        assert os.path.exists(os.path.join(load_dir, 'indices.npy'))
-        print('load indices from disk')
-        indices_full = np.load(os.path.join(load_dir, 'indices.npy'), allow_pickle=True)
-    else:
-        print('creat indices file')
-        indices_full = np.arange(len(trainset))
-        np.random.shuffle(indices_full)
-        indices_full.dump(os.path.join(save_dir, 'indices.npy'))
+    print('creat indices file')
+    indices_full = np.arange(len(trainset))
+    np.random.shuffle(indices_full)
+    #indices_full.dump(os.path.join(save_dir, 'indices.npy'))
     trainset_size = int(len(trainset) / num_discriminators)
     print('Size of the dataset: ', trainset_size)
 
@@ -223,10 +235,11 @@ def main(args):
         input_data = inf_train_gen(trainloader)
         input_pipelines.append(input_data)
 
+    if if_dp:
     ### Register hook
-    global dynamic_hook_function
-    for netD in netD_list:
-        netD.conv1.register_backward_hook(master_hook_adder)
+        global dynamic_hook_function
+        for netD in netD_list:
+            netD.conv1.register_backward_hook(master_hook_adder)
 
 
     for iter in range(args.iterations + 1):
@@ -309,6 +322,7 @@ def main(args):
         label = torch.randint(0, NUM_CLASSES, [batchsize]).to(device0)
         noisev = autograd.Variable(noise)
         fake = netG(noisev, label)
+        #summary(netG, input_data=[noisev,label])
         fake = fake.to(device)
         label = label.to(device)
         G = netD(fake, label)
@@ -332,7 +346,10 @@ def main(args):
                                                                 ))
 
         if iter % args.vis_step == 0:
-            generate_image(iter, netGS, fix_noise, save_dir, device0, num_classes=10)
+            if dataset == 'mnist':
+                generate_image_mnist(iter, netGS, fix_noise, save_dir, device0)
+            elif dataset == 'cifar_100':
+                generate_image_cifar100(iter, netGS, fix_noise, save_dir, device0)
 
         if iter % args.save_step == 0:
             ### save model

@@ -8,6 +8,8 @@ import torch.utils.data as data
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 from torch.utils.data.sampler import SubsetRandomSampler
+#from torchsummary import summary
+from torchinfo import summary
 
 from config import *
 from models import *
@@ -16,7 +18,7 @@ from utils import *
 IMG_DIM = 784
 NUM_CLASSES = 10
 DATA_ROOT = './../data'
-
+os.environ["CUDA_VISIBLE_DEVICES"] = "2,3,5"
 
 ##########################################################
 ### main
@@ -59,7 +61,10 @@ def main(args):
     ### Set up models
     netD_list = []
     for i in range(len(net_ids)):
-        netD = DiscriminatorDCGAN()
+        if dataset == 'mnist':
+            netD = DiscriminatorDCGAN()
+        elif dataset == 'cifar_10':
+            netD = DiscriminatorDCGAN_cifar10()
         netD_list.append(netD)
     netD_list = [netD.to(device) for netD in netD_list]
 
@@ -67,30 +72,66 @@ def main(args):
     optimizerD_list = []
     for i in range(len(net_ids)):
         netD = netD_list[i]
-        optimizerD = optim.Adam(netD.parameters(), lr=1e-4, betas=(0.5, 0.9))
+        optimizerD = optim.Adam(netD.parameters(), lr=1e-6, betas=(0.5, 0.9))
         optimizerD_list.append(optimizerD)
 
-    ### Data loaders
-    transform_train = transforms.ToTensor()
+    ### transform
+    if dataset == 'mnist':
+        transform_train=transforms.Compose([
+            transforms.ToTensor(),
+            ])
+    elif dataset == 'cifar_100':
+        transform_=transforms.Compose([
+            #transforms.Resize((160, 160)),
+            #transforms.RandomCrop((128, 128)),
+            #transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            ])
+    elif dataset == 'cifar_10':
+        transform_train = transforms.Compose([
+            transforms.RandomCrop(32, padding=4),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+        ])
+
+        transform_test = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+        ])
+    else:
+        transform=transforms.Compose([])
+
+    ##dataloader
     if dataset == 'mnist':
         dataloader = datasets.MNIST
         trainset = dataloader(root=os.path.join(DATA_ROOT, 'MNIST'), train=True, download=True,
                               transform=transform_train)
+        IMG_DIM = 784
+        NUM_CLASSES = 10
     elif dataset == 'fashionmnist':
         dataloader = datasets.FashionMNIST
         trainset = dataloader(root=os.path.join(DATA_ROOT, 'FashionMNIST'), train=True, download=True,
                               transform=transform_train)
+    elif dataset == 'cifar_100':
+        dataloader = datasets.CIFAR100
+        trainset = dataloader(root=os.path.join(DATA_ROOT, 'CIFAR100'), train=True, download=True,
+                              transform=transform_train)
+        IMG_DIM = 3072
+        NUM_CLASSES = 100
+    elif dataset == 'cifar_10':
+        dataloader = datasets.CIFAR10
+        trainset = dataloader(root=os.path.join(DATA_ROOT, 'CIFAR10'), train=True, download=True,
+                              transform=transform_train)
+        IMG_DIM = 3072
+        NUM_CLASSES = 10
     else:
         raise NotImplementedError
 
-    if os.path.exists(os.path.join(save_dir, 'indices.npy')):
-        print('load indices from disk')
-        indices_full = np.load(os.path.join(save_dir, 'indices.npy'), allow_pickle=True)
-    else:
-        print('creat indices file')
-        indices_full = np.arange(len(trainset))
-        np.random.shuffle(indices_full)
-        indices_full.dump(os.path.join(save_dir, 'indices.npy'))
+    print('creat indices file')
+    indices_full = np.arange(len(trainset))
+    np.random.shuffle(indices_full)
+    #indices_full.dump(os.path.join(save_dir, 'indices.npy'))
     trainset_size = int(len(trainset) / num_discriminators)
     print('Size of the dataset: ', trainset_size)
 
@@ -119,11 +160,19 @@ def main(args):
         input_data = input_pipelines[idx]
 
         ### Train (non-private) Generator for each Discriminator
-        if gen_arch == 'DCGAN':
-            netG = GeneratorDCGAN(z_dim=z_dim, model_dim=model_dim, num_classes=10).to(device)
-        elif gen_arch == 'ResNet':
-            netG = GeneratorResNet(z_dim=z_dim, model_dim=model_dim, num_classes=10).to(device)
-        optimizerG = optim.Adam(netG.parameters(), lr=1e-4, betas=(0.5, 0.9))
+        if dataset == 'mnist':
+            if gen_arch == 'DCGAN':
+                netG = GeneratorDCGAN(z_dim=z_dim, model_dim=model_dim, num_classes=10).to(device)
+            elif gen_arch == 'ResNet':
+                netG = GeneratorResNet(z_dim=z_dim, model_dim=model_dim, num_classes=10).to(device)
+            elif gen_arch == 'custom':
+                netG = GeneratorCustomCNN(z_dim=z_dim)
+        elif dataset == 'cifar_10':
+            if gen_arch == 'ResNet':
+                netG = GeneratorResNet_cifar10(z_dim=z_dim, model_dim=model_dim, num_classes=10).to(device)
+
+
+        optimizerG = optim.Adam(netG.parameters(), lr=1e-5, betas=(0.5, 0.9))
 
         ### Save dir for each discriminator
         save_subdir = os.path.join(save_dir, 'netD_%d' % netD_id)
@@ -207,12 +256,13 @@ def main(args):
                 ### Results visualization
                 ############################
                 if iter < 5 or iter % args.print_step == 0:
-                    print('G_cost:{}, D_cost:{}, Wasserstein:{}'.format(G_cost.cpu().data,
+                    print('id/iter:{}/{}, G_cost:{}, D_cost:{}, Wasserstein:{}'.format(netD_id,iter,G_cost.cpu().data,
                                                                         D_cost.cpu().data,
                                                                         Wasserstein_D.cpu().data
                                                                         ))
                 if iter == args.pretrain_iterations:
-                    generate_image(iter, netG, fix_noise, save_subdir, device, num_classes=10)
+                    generate_image_cifar10(iter, netG, fix_noise, save_subdir, device, num_classes=10)
+                    
 
             torch.save(netD.state_dict(), os.path.join(save_subdir, 'netD.pth'))
 

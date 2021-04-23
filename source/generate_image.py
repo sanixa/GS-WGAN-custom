@@ -16,15 +16,6 @@ from utils import mkdir
 import matplotlib.pyplot as plt
 import argparse
 
-IMG_DIM = 784
-NUM_CLASSES = 10
-CLIP_BOUND = 1.
-SENSITIVITY = 2.
-DATA_ROOT = './../data'
-
-
- 
-
 ##########################################################
 ### main
 ##########################################################
@@ -32,12 +23,11 @@ def main():
     ### config
     parser = argparse.ArgumentParser()
     parser.add_argument('--dir', '-d', type=str, default=None, help='save dir')
+    parser.add_argument('--dataset', '-data', type=str, default=None, help='dataset')
     args = parser.parse_args()
 
 
-    dataset = 'mnist'
     z_dim = 10
-    batchsize = 32
     save_dir = './../results/generated/' + args.dir
     num_gpus = 1
     random_seed = 42
@@ -51,74 +41,105 @@ def main():
     if use_cuda:
         torch.set_default_tensor_type('torch.cuda.FloatTensor')
 
-    ### Random seed
-    random.seed(random_seed)
-    np.random.seed(random_seed)
-    torch.manual_seed(random_seed)
-
-    ### Fix noise for visualization
-    p = 0.5
-    bernoulli = torch.distributions.Bernoulli(torch.tensor([p]))
-    fix_noise = bernoulli.sample((10, z_dim)).view(10, z_dim)
-
 
     ### Set up models
-    netG = torch.load(os.path.join('./../results/mnist/main/' + args.dir, 'netGS.pth'))
+    netG = torch.load(os.path.join('./../results/' + args.dataset + '/main/' + args.dir, 'netGS.pth'))
     netG.eval()
     netG = netG.to(device0)
 
+    if args.dataset == 'mnist':
+        img = []
+        label = []
+        num_classes = 10
+    elif args.dataset == 'cifar_10':
+        img = []
+        label = []
+        num_classes = 10
+    elif args.dataset == 'CELEBA':
+        img = []
+        label = []
+        num_classes = 10
 
- 
-    for iter in range(100):
+    for iter in range(1000):
 
         ############################
         ### Results visualization
         ############################
+        '''
         p = 0.5
         bernoulli = torch.distributions.Bernoulli(torch.tensor([p]))
         fix_noise = bernoulli.sample((10, z_dim)).view(10, z_dim)
-        generate_image(iter, netG, fix_noise, save_dir, device0, num_classes=10)
+        '''
+        ### Random seed
+        random.seed(iter)
+        np.random.seed(iter)
+        torch.manual_seed(iter)
+        ### Fix noise for visualization
+        p = 0.5
+        bernoulli = torch.distributions.Bernoulli(torch.tensor([p]))
+        fix_noise = bernoulli.sample((1, z_dim)).view(1, z_dim)
 
-def generate_image(iter, netG, fix_noise, save_dir, device, num_classes=10,
-                   img_w=28, img_h=28):
+        generate_image_unit(iter, netG, fix_noise, save_dir, device0, num_classes, args.dataset)
+        img, label = generate_image_npy_unit(iter, netG, fix_noise, save_dir, img, label, device0, num_classes, args.dataset)
+
+    img = np.array(img)
+    label = np.array(label)
+    print(img.shape)
+    print(label.shape)
+    np.save(os.path.join(save_dir, args.dir + '_img.npy'), img[1:])
+    np.save(os.path.join(save_dir, args.dir + '_label.npy'), label[1:])
+
+def generate_image_unit(iter, netG, fix_noise, save_dir, device, num_classes, dataset):
     batchsize = fix_noise.size()[0]
-    nrows = 10
-    ncols = num_classes
+    nrows = 1
     figsize = (1, 1)
     noise = fix_noise.to(device)
-    '''
-    sample_list = []
-    for class_id in range(num_classes):
-        label = torch.full((nrows,), class_id, dtype=torch.int32).to(device)
-        sample = netG(noise, label)
-        sample = sample.view(batchsize, img_w, img_h)
-        sample = sample.cpu().data.numpy()
-        sample_list.append(sample)
-    samples = np.transpose(np.array(sample_list), [1, 0, 2, 3])
-    samples = np.reshape(samples, [nrows * ncols, img_w, img_h])
 
-    plt.figure(figsize=figsize)
-    for i in range(nrows * ncols):
-        plt.subplot(nrows, ncols, i + 1)
-        plt.imshow(samples[i], cmap='gray')
-        plt.axis('off')
-    savefig(os.path.join(save_dir, 'samples_{}.png'.format(iter)))
-
-    del label, noise, sample
-    torch.cuda.empty_cache()
-    '''
+    if dataset == 'mnist':
+        img_shape = (28, 28, 1)
+    elif dataset == 'cifar_10':
+        img_shape = (32, 32, 1)
+    elif dataset == 'CELEBA':
+        img_shape = (32, 32, 1)
 
     for i in range(num_classes): ##label
         label = torch.full((nrows,), i, dtype=torch.int32).to(device)
         sample = netG(noise, label)
-        sample = sample.view(batchsize, img_w, img_h)
+        sample = sample.view(img_shape)
+        sample = sample.cpu().data.numpy()
+        
+        
+        plt.figure(figsize=figsize)
+        plt.imshow(sample, cmap='gray')
+        plt.axis('off')
+        savefig(os.path.join(save_dir, 'samples_{}.png'.format(iter*2 + i)))
+
+    del label, noise, sample
+    torch.cuda.empty_cache()
+
+
+def generate_image_unit_npy(iter, netG, fix_noise, save_dir, img, label_l, device, num_classes, dataset):
+    nrows = 1
+    ncols = num_classes
+    figsize = (1, 1)
+    noise = fix_noise.to(device)
+
+    if dataset == 'mnist':
+        img_shape = (28, 28, 1)
+    elif dataset == 'cifar_100':
+        img_shape = (32, 32, 1)
+    elif dataset == 'CELEBA':
+        img_shape = (32, 32, 1)
+
+    for i in range(num_classes): ##label
+        label = torch.full((nrows,), i, dtype=torch.int32).to(device)
+        sample = netG(noise, label)
+        sample = sample.view(img_shape)
         sample = sample.cpu().data.numpy()
 
-        plt.figure(figsize=figsize)
-        for j in range(ncols):
-            plt.imshow(sample[j], cmap='gray')
-            plt.axis('off')
-            savefig(os.path.join(save_dir, 'samples_{}.png'.format(iter*100 + i*num_classes + j)))
+        img.append(sample)
+        label_l.append(i)
+    return img, label_l
 
 def savefig(fname, dpi=None):
     dpi = 150 if dpi == None else dpi
