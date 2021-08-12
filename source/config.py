@@ -11,9 +11,9 @@ def parse_arguments():
     parser.add_argument('--random_seed', '-s', type=int, default=1, help='random seed')
     parser.add_argument('--dataset', '-data', type=str, default='mnist', choices=['mnist', 'fashionmnist', 'cifar_100', 'cifar_10'],
                         help=' dataset name')
-    parser.add_argument('--num_discriminators', '-ndis', type=int, default=100, help='number of discriminators')
-    parser.add_argument('--noise_multiplier', '-noise', type=float, default=1.07, help='noise multiplier')
-    parser.add_argument('--z_dim', '-zdim', type=int, default=10, help='latent code dimensionality')
+    parser.add_argument('--num_discriminators', '-ndis', type=int, default=300, help='number of discriminators')
+    parser.add_argument('--noise_multiplier', '-noise', type=float, default=0.175935, help='noise multiplier') #0.175935 for eps1000 #0.427 for eps10 #0.86 for eps1
+    parser.add_argument('--z_dim', '-zdim', type=int, default=12, help='latent code dimensionality')
     parser.add_argument('--model_dim', '-mdim', type=int, default=64, help='model dimensionality')
     parser.add_argument('--batchsize', '-bs', type=int, default=32, help='batch size')
     parser.add_argument('--L_gp', '-lgp', type=float, default=10, help='gradient penalty lambda hyperparameter')
@@ -37,6 +37,10 @@ def parse_arguments():
     parser.add_argument('--exp_name', '-name', type=str,
                         help='output folder name; will be automatically generated if not specified')
     parser.add_argument('--dp', '-dp', type=int, default=1, help='usage of DP')
+    parser.add_argument('--collect_iter', '-collect_iter', type=int, default=1000, help='collection period')
+
+    parser.add_argument('--checkpoint', type=str)
+    parser.add_argument('--save_dir', type=str)
     args = parser.parse_args()
     return args
 
@@ -97,3 +101,4 @@ def load_config(args):
     ### load config
     config = pickle.load(open(os.path.join(save_dir, 'params.pkl'), 'rb'))
     return config
+

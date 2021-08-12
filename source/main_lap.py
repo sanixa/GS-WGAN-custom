@@ -117,6 +117,31 @@ def dp_conv_hook(module, grad_input, grad_output):
         grad_input_new.append(grad_input[i+1])
     return tuple(grad_input_new)
 
+def Laplacian_smoothing(net, sigma=1):
+    ## after add dp noise
+    for p_net in net.parameters():
+        size_param = torch.numel(p_net)
+        if size_param < 3:
+            pass
+        else:
+           tmp = p_net.grad.view(-1, size_param)
+
+           c = np.zeros(shape=(1, size_param))
+           c[0, 0] = -2.; c[0, 1] = 1.; c[0, -1] = 1.
+           c = torch.Tensor(c).cuda()
+           zero_N = torch.zeros(1, size_param).cuda()
+           c_fft = torch.rfft(c, 1, onesided=False)
+           coeff = 1./(1.-sigma*c_fft[...,0])
+           ft_tmp = torch.rfft(tmp, 1, onesided=False)
+           tmp = torch.zeros_like(ft_tmp)
+           tmp[...,0] = ft_tmp[...,0]*coeff
+           tmp[...,1] = ft_tmp[...,1]*coeff
+           tmp = torch.irfft(tmp, 1, onesided=False)
+           tmp = tmp.view(p_net.grad.size())
+           p_net.grad.data = tmp
+
+    return net
+
 class Flatten(nn.Module):
     def forward(self, input):
         return input.view(input.size()[0], -1)
@@ -138,12 +163,13 @@ class Classifier(nn.Module):
     def forward(self, input):
         return self.model(input)
 
+
 FloatTensor = torch.cuda.FloatTensor
 LongTensor = torch.cuda.LongTensor
 
 
-
 def classify_training(netGS, dataset, iter):
+
     ### Data loaders
     if dataset == 'mnist' or dataset == 'fashionmnist':
         transform_train = transforms.Compose([
@@ -324,9 +350,9 @@ def main(args):
     optimizerD_list = []
     for i in range(num_discriminators):
         netD = netD_list[i]
-        optimizerD = optim.Adam(netD.parameters(), lr=1e-4, betas=(0.5, 0.99))
+        optimizerD = optim.Adam(netD.parameters(), lr=5e-4, betas=(0.5, 0.99))
         optimizerD_list.append(optimizerD)
-    optimizerG = optim.Adam(netG.parameters(), lr=1e-4, betas=(0.5, 0.99))
+    optimizerG = optim.Adam(netG.parameters(), lr=1e-3, betas=(0.5, 0.99))
 
     ### Data loaders
     if dataset == 'mnist' or dataset == 'fashionmnist':
@@ -480,6 +506,7 @@ def main(args):
         ### update
         G.backward()
         G_cost = G
+        netG = Laplacian_smoothing(netG)
         optimizerG.step()
 
         ### update the exponential moving average
@@ -519,4 +546,6 @@ if __name__ == '__main__':
     args = parse_arguments()
     save_config(args)
     main(args)
+
+
 

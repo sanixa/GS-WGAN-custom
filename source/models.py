@@ -10,6 +10,16 @@ from ops import SpectralNorm, one_hot_embedding, pixel_norm
 IMG_W = IMG_H = 28  # image width and height
 IMG_C = 1  # image channel
 
+class TemperedSigmoid(nn.Module):
+    def __init__(self, s=2, T=2, o=1):
+        super().__init__()
+        self.s = s
+        self.T = T
+        self.o = o
+
+    def forward(self, input):
+        div = 1 + torch.exp(-1 * self.T *input)
+        return self.s / div - self.o
 
 class GBlock(nn.Module):
     def __init__(self, in_channels, out_channels,
@@ -48,6 +58,10 @@ class GeneratorDCGAN(nn.Module):
     def __init__(self, z_dim=10, model_dim=64, num_classes=10, outact=nn.Sigmoid()):
         super(GeneratorDCGAN, self).__init__()
 
+        self.cdist = nn.CosineSimilarity(dim = 1, eps= 1e-9)
+        self.grads = []
+        self.grad_dict = {}
+
         self.model_dim = model_dim
         self.z_dim = z_dim
         self.num_classes = num_classes
@@ -83,6 +97,47 @@ class GeneratorDCGAN(nn.Module):
 
         output = self.deconv3(output)
         output = self.outact(output)
+        return output.view(-1, IMG_W * IMG_H)
+
+class GeneratorDCGAN_TS(nn.Module):
+    def __init__(self, z_dim=10, model_dim=64, num_classes=10, outact=nn.Sigmoid()):
+        super(GeneratorDCGAN_TS, self).__init__()
+
+        self.model_dim = model_dim
+        self.z_dim = z_dim
+        self.num_classes = num_classes
+
+        fc = nn.Linear(z_dim + num_classes, 4 * 4 * 4 * model_dim)
+        deconv1 = nn.ConvTranspose2d(4 * model_dim, 2 * model_dim, 5)
+        deconv2 = nn.ConvTranspose2d(2 * model_dim, model_dim, 5)
+        deconv3 = nn.ConvTranspose2d(model_dim, IMG_C, 8, stride=2)
+
+        self.deconv1 = deconv1
+        self.deconv2 = deconv2
+        self.deconv3 = deconv3
+        self.fc = fc
+        self.TS = TemperedSigmoid()
+        self.outact = outact
+
+    def forward(self, z, y):
+        y_onehot = one_hot_embedding(y, self.num_classes)
+        z_in = torch.cat([z, y_onehot], dim=1)
+        output = self.fc(z_in)
+        output = output.view(-1, 4 * self.model_dim, 4, 4)
+        output = self.TS(output)
+        output = pixel_norm(output)
+
+        output = self.deconv1(output)
+        output = output[:, :, :7, :7]
+        output = self.TS(output)
+        output = pixel_norm(output)
+
+        output = self.deconv2(output)
+        output = self.TS(output).contiguous()
+        output = pixel_norm(output)
+
+        output = self.deconv3(output)
+        output = self.TS(output)
         return output.view(-1, IMG_W * IMG_H)
 
 
@@ -130,16 +185,17 @@ class GeneratorResNet_cifar10(nn.Module):
         self.model_dim = model_dim
         self.z_dim = z_dim
         self.num_classes = num_classes
-        self.IMG_C = 3
+        self.IMG_C = 1
         self.IMG_H, self.IMG_W = 32,32
 
         fc = SpectralNorm(nn.Linear(z_dim + num_classes, 4 * 4 * 4 * model_dim))
-        block1 = GBlock(256, 128)
-        block2 = GBlock(128, 64)
-        block3 = GBlock(64, 128)
-        block4 = GBlock(128, 256)
-        block5 = GBlock(256, 512)
-        output = SpectralNorm(nn.Conv2d(512, self.IMG_C, kernel_size=3, padding=1))
+        block1 = GBlock(model_dim * 4, model_dim * 2)
+        block2 = GBlock(model_dim * 2, model_dim)
+        block3 = GBlock(model_dim, model_dim)
+        block4 = GBlock(model_dim, model_dim * 2)
+        block5 = GBlock(model_dim * 2, model_dim * 4)
+        output1 = SpectralNorm(nn.Conv2d(model_dim * 4,model_dim * 2, kernel_size=3, stride=2, padding=1))
+        output2 = SpectralNorm(nn.Conv2d(model_dim * 2, self.IMG_C, kernel_size=3, stride=2, padding=1))
 
         self.block1 = block1
         self.block2 = block2
@@ -147,7 +203,8 @@ class GeneratorResNet_cifar10(nn.Module):
         self.block4 = block4
         self.block5 = block5
         self.fc = fc
-        self.output = output
+        self.output1 = output1
+        self.output2 = output2
         self.relu = nn.ReLU()
         self.outact = outact
 
@@ -163,8 +220,10 @@ class GeneratorResNet_cifar10(nn.Module):
         output = self.block3(output)
         output = self.block4(output)
         output = self.block5(output)
-        output = self.outact(self.output(output))
-        output = torch.reshape(output, [-1, 3* self.IMG_H * self.IMG_W])
+        output = self.output1(output)
+        output = self.relu(output)
+        output = self.outact(self.output2(output))
+        output = torch.reshape(output, [-1, self.IMG_H * self.IMG_W])
         return output
 
 class DiscriminatorDCGAN(nn.Module):
@@ -228,11 +287,12 @@ class DiscriminatorDCGAN(nn.Module):
         gradient_penalty = ((gradients_norm - 1) ** 2).mean() * L_gp
         return gradient_penalty
 
+
 class DiscriminatorDCGAN_cifar10(nn.Module):
     def __init__(self, model_dim=64, num_classes=10, if_SN=True):
         super(DiscriminatorDCGAN_cifar10, self).__init__()
         self.IMG_W, self.IMG_H = 32, 32 
-        self.IMG_C = 3
+        self.IMG_C = 1
         self.model_dim = model_dim
         self.num_classes = num_classes
 
@@ -251,7 +311,7 @@ class DiscriminatorDCGAN_cifar10(nn.Module):
         self.relu = nn.ReLU()
 
     def forward(self, input, y):
-        input = input.view(-1, 3, self.IMG_W, self.IMG_H)
+        input = input.view(-1, self.IMG_C, self.IMG_W, self.IMG_H)
         h = self.relu(self.conv1(input))
         h = self.relu(self.conv2(h))
         h = self.relu(self.conv3(h))
@@ -459,3 +519,7 @@ class ResNetResidualBlock(nn.Module):
         x = self.Conv_3(x)
         x += residual
         return x
+
+
+
+

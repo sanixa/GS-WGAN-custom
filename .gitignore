@@ -9,6 +9,14 @@ datasets*
 */data
 data*
 
+*.png
+*.pth
+*.pkl
+*.txt
+*.npy
+*.npz
+source/train/*
+
 # Pycharm
 .idea/
 

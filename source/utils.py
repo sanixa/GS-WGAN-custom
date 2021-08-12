@@ -63,16 +63,16 @@ def generate_image_cifar10(iter, netG, fix_noise, save_dir, device, num_classes=
     for class_id in range(num_classes):
         label = torch.full((nrows,), class_id).to(device)
         sample = netG(noise, label)
-        sample = sample.view(batchsize, 3, img_w, img_h)
+        sample = sample.view(batchsize, img_w, img_h)
         sample = sample.cpu().data.numpy()
         sample_list.append(sample)
-    samples = np.transpose(np.array(sample_list), [1, 0, 3, 4, 2])
-    samples = np.reshape(samples, [nrows * ncols, img_w, img_h, 3])
+    samples = np.transpose(np.array(sample_list), [1, 0, 2, 3])
+    samples = np.reshape(samples, [nrows * ncols, img_w, img_h])
 
     plt.figure(figsize=figsize)
     for i in range(nrows * ncols):
         plt.subplot(nrows, ncols, i + 1)
-        plt.imshow(samples[i] / 255.)
+        plt.imshow(samples[i], cmap='gray')
         plt.axis('off')
     savefig(os.path.join(save_dir, 'samples_{}.png'.format(iter)))
 
@@ -88,3 +88,4 @@ def get_device_id(id, num_discriminators, num_gpus):
             break
         device_id += 1
     return device_id
+

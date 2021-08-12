@@ -117,6 +117,8 @@ def dp_conv_hook(module, grad_input, grad_output):
         grad_input_new.append(grad_input[i+1])
     return tuple(grad_input_new)
 
+
+
 class Flatten(nn.Module):
     def forward(self, input):
         return input.view(input.size()[0], -1)
@@ -138,12 +140,13 @@ class Classifier(nn.Module):
     def forward(self, input):
         return self.model(input)
 
-FloatTensor = torch.cuda.FloatTensor
-LongTensor = torch.cuda.LongTensor
-
 
 
 def classify_training(netGS, dataset, iter):
+
+    FloatTensor = torch.cuda.FloatTensor
+    LongTensor = torch.cuda.LongTensor
+
     ### Data loaders
     if dataset == 'mnist' or dataset == 'fashionmnist':
         transform_train = transforms.Compose([
@@ -183,7 +186,7 @@ def classify_training(netGS, dataset, iter):
     else:
         raise NotImplementedError
     test_loader = DataLoader(test_set, batch_size=1000, shuffle=False)
-
+    
     netGS.eval()
     for i in tqdm(range(25)):
         gen_labels = Variable(LongTensor(np.random.randint(0, 10, 2000)))
@@ -298,7 +301,7 @@ def main(args):
 
     ### Set up models
     print('gen_arch:' + gen_arch)
-    netG = GeneratorDCGAN(z_dim=z_dim, model_dim=model_dim, num_classes=10)
+    netG = GeneratorDCGAN_TS(z_dim=z_dim, model_dim=model_dim, num_classes=10)
 
     netGS = copy.deepcopy(netG)
     netD_list = []
@@ -405,6 +408,7 @@ def main(args):
             p.requires_grad = True
 
         for iter_d in range(critic_iters):
+            #import ipdb; ipdb.set_trace()
             real_data, real_y = next(input_data)
             real_data = real_data.view(-1, IMG_DIM)
             real_data = real_data.to(device)
@@ -519,4 +523,5 @@ if __name__ == '__main__':
     args = parse_arguments()
     save_config(args)
     main(args)
+
 

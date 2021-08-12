@@ -18,7 +18,7 @@ from utils import *
 IMG_DIM = 784
 NUM_CLASSES = 10
 DATA_ROOT = './../data'
-os.environ["CUDA_VISIBLE_DEVICES"] = "2,3,5"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,3"
 
 ##########################################################
 ### main
@@ -90,14 +90,16 @@ def main(args):
     elif dataset == 'cifar_10':
         transform_train = transforms.Compose([
             transforms.RandomCrop(32, padding=4),
+            transforms.Grayscale(1),
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
-            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+            #transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
         ])
 
         transform_test = transforms.Compose([
+            transforms.Grayscale(1),
             transforms.ToTensor(),
-            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+            #transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
         ])
     else:
         transform=transforms.Compose([])
@@ -123,7 +125,7 @@ def main(args):
         dataloader = datasets.CIFAR10
         trainset = dataloader(root=os.path.join(DATA_ROOT, 'CIFAR10'), train=True, download=True,
                               transform=transform_train)
-        IMG_DIM = 3072
+        IMG_DIM = 32*32
         NUM_CLASSES = 10
     else:
         raise NotImplementedError

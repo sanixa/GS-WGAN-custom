@@ -20,7 +20,7 @@ from ops import exp_mov_avg
 from torchinfo import summary
 from tqdm import tqdm
 
-IMG_DIM = 768
+IMG_DIM = 784
 NUM_CLASSES = 100
 CLIP_BOUND = 1.
 SENSITIVITY = 2.
@@ -142,7 +142,6 @@ FloatTensor = torch.cuda.FloatTensor
 LongTensor = torch.cuda.LongTensor
 
 
-
 def classify_training(netGS, dataset, iter):
     ### Data loaders
     if dataset == 'mnist' or dataset == 'fashionmnist':
@@ -252,6 +251,132 @@ def classify_training(netGS, dataset, iter):
     torch.cuda.empty_cache()
 
 
+def collect(args, collect_iter, netG, netD, input_pipelines, devices, optimizerG, optimizerD, G_grad_dict_num):
+
+    if args.dp > 0.:
+    ### Register hook
+        global dynamic_hook_function
+        netD.conv1.register_backward_hook(master_hook_adder)
+
+    prg_bar = tqdm(range(collect_iter+1))
+    for iter in prg_bar:
+        #########################
+        ### Update D network
+        #########################
+        device = devices[get_device_id(0, args.num_discriminators, args.num_gpus)]
+        device0 = devices[0]
+        input_data = input_pipelines[0]
+        p = 0.5
+        bernoulli = torch.distributions.Bernoulli(torch.tensor([p]))
+
+        for p in netD.parameters():
+            p.requires_grad = True
+
+        for iter_d in range(args.critic_iters):
+            real_data, real_y = next(input_data)
+            real_data = real_data.view(-1, IMG_DIM)
+            real_data = real_data.to(device)
+            real_y = real_y.to(device)
+            real_data_v = autograd.Variable(real_data)
+
+            ### train with real
+            dynamic_hook_function = dummy_hook
+            netD.zero_grad()
+            D_real_score = netD(real_data_v, real_y)
+            D_real = -D_real_score.mean()
+
+            ### train with fake
+            batchsize = real_data.shape[0]
+            z_dim = args.z_dim
+            latent_type = args.latent_type
+            if latent_type == 'normal':
+                noise = torch.randn(batchsize, z_dim).to(device0)
+            elif latent_type == 'bernoulli':
+                noise = bernoulli.sample((batchsize, z_dim)).view(batchsize, z_dim).to(device0)
+            else:
+                raise NotImplementedError
+            noisev = autograd.Variable(noise)
+            fake = autograd.Variable(netG(noisev, real_y.to(device0)).data)
+            inputv = fake.to(device)
+            D_fake = netD(inputv, real_y.to(device))
+            D_fake = D_fake.mean()
+
+            ### train with gradient penalty
+            gradient_penalty = netD.calc_gradient_penalty(real_data_v.data, fake.data, real_y, args.L_gp, device)
+            D_cost = D_fake + D_real + gradient_penalty
+
+            ### train with epsilon penalty
+            logit_cost = args.L_epsilon * torch.pow(D_real_score, 2).mean()
+            D_cost += logit_cost
+
+            ### update
+            D_cost.backward()
+            Wasserstein_D = -D_real - D_fake
+            optimizerD.step()
+
+        del real_data, real_y, fake, noise, inputv, D_real, D_fake, logit_cost, gradient_penalty
+        torch.cuda.empty_cache()
+
+        ############################
+        # Update G network
+        ###########################
+        if args.dp > 0.:
+            ### Sanitize the gradients passed to the Generator
+            dynamic_hook_function = dp_conv_hook
+        else:
+            ### Only modify the gradient norm, without adding noise
+            dynamic_hook_function = modify_gradnorm_conv_hook
+
+        for p in netD.parameters():
+            p.requires_grad = False
+        netG.zero_grad()
+
+        batchsize = args.batchsize
+        z_dim = args.z_dim
+        latent_type = args.latent_type
+        NUM_CLASSES = 10
+        ### train with sanitized discriminator output
+        if latent_type == 'normal':
+            noise = torch.randn(batchsize, z_dim).to(device0)
+        elif latent_type == 'bernoulli':
+            noise = bernoulli.sample((batchsize, z_dim)).view(batchsize, z_dim).to(device0)
+        else:
+            raise NotImplementedError
+        label = torch.randint(0, NUM_CLASSES, [batchsize]).to(device0)
+        noisev = autograd.Variable(noise)
+        fake = netG(noisev, label)
+        #summary(netG, input_data=[noisev,label])
+        fake = fake.to(device)
+        label = label.to(device)
+        G = netD(fake, label)
+        G = - G.mean()
+
+        ### update
+        G.backward()
+        G_cost = G
+
+        optimizerG.step()
+
+
+        ############################
+        ### Results visualization
+        ############################
+        prg_bar.set_description('iter:{}, G_cost:{:.2f}, D_cost:{:.2f}, Wasserstein:{:.2f}'.format(iter, G_cost.cpu().data,
+                                                                D_cost.cpu().data,
+                                                                Wasserstein_D.cpu().data
+                                                                ))
+
+        if torch.rand(1) < 0.2:
+            netG.grad_dict[G_grad_dict_num] = [p.grad.clone() for p in netG.parameters()]
+            g_vec = torch.cat([g.view(-1) for g in netG.grad_dict[G_grad_dict_num]])
+            netG.grads.append(g_vec)
+            G_grad_dict_num += 1
+
+
+
+    return G_grad_dict_num
+
+
 ##########################################################
 ### main
 ##########################################################
@@ -273,6 +398,7 @@ def main(args):
     if_dp = (args.dp > 0.)
     gen_arch = args.gen_arch
     num_gpus = args.num_gpus
+    collect_iter = args.collect_iter
 
     ### CUDA
     use_cuda = torch.cuda.is_available()
@@ -384,6 +510,14 @@ def main(args):
         input_data = inf_train_gen(trainloader)
         input_pipelines.append(input_data)
 
+    G_grad_dict_num = 0
+    collect_iter = args.collect_iter
+    netD = netD_list[0]
+    optimizerD = optimizerD_list[0]
+    G_grad_dict_num = collect(args, collect_iter, netG, netD, input_pipelines, devices, optimizerG, optimizerD, G_grad_dict_num)
+    netG.grads = torch.stack(netG.grads)
+    print("finish collecting")
+
     if if_dp:
     ### Register hook
         global dynamic_hook_function
@@ -395,7 +529,7 @@ def main(args):
         #########################
         ### Update D network
         #########################
-        netD_id = np.random.randint(num_discriminators, size=1)[0]
+        netD_id = np.random.randint(num_discriminators - 1, size=1)[0] + 1  ##0-999 to 1-999, netD(0) has been used to collect
         device = devices[get_device_id(netD_id, num_discriminators, num_gpus)]
         netD = netD_list[netD_id]
         optimizerD = optimizerD_list[netD_id]
@@ -480,6 +614,15 @@ def main(args):
         ### update
         G.backward()
         G_cost = G
+
+        g_vec = torch.cat([p.grad.view(-1) for p in netG.parameters()])
+        dist_mat = netG.cdist(g_vec.unsqueeze(0), netG.grads)
+        #import ipdb; ipdb.set_trace()
+        closest_idx = int(dist_mat.argmax().data.cpu().numpy())
+            
+        for idx, p in enumerate(netG.parameters()):
+            p.grad = netG.grad_dict[closest_idx][idx]
+
         optimizerG.step()
 
         ### update the exponential moving average
@@ -519,4 +662,5 @@ if __name__ == '__main__':
     args = parse_arguments()
     save_config(args)
     main(args)
+
 

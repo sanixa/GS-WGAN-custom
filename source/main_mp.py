@@ -10,6 +10,8 @@ from torch.utils.data import DataLoader, Dataset, TensorDataset
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 from torch.utils.data.sampler import SubsetRandomSampler
+import torch.nn.utils.prune as prune
+import torch.nn.functional as F
 
 from config import *
 from models import *
@@ -239,12 +241,30 @@ def classify_training(netGS, dataset, iter):
     for i in range(9):
         if (test_acc > acc_milestone[i] and acc_passed[i] == False):
             acc_passed[i] = True
+            prune.remove(netGS.fc, name="weight")
+            prune.remove(netGS.deconv1, name="weight")
+            prune.remove(netGS.deconv2, name="weight")
+            prune.remove(netGS.deconv3, name="weight")
             torch.save(netGS, os.path.join(args.checkpoint, f'diff_acc/{acc_milestone[i]}.pth'))
+            prune.random_unstructured(netGS.fc, name="weight", amount=0.5)
+            prune.random_unstructured(netGS.deconv1, name="weight", amount=0.5)
+            prune.random_unstructured(netGS.deconv2, name="weight", amount=0.5)
+            prune.random_unstructured(netGS.deconv3, name="weight", amount=0.5)
+
             with open(os.path.join(args.checkpoint, f'diff_acc/result.txt'), 'a') as f:
                 f.write(f"thres:{acc_milestone[i]}% iter:{iter}, acc:{test_acc:.1f}%\n")
 
     if (iter in iter_milestone):
+        prune.remove(netGS.fc, name="weight")
+        prune.remove(netGS.deconv1, name="weight")
+        prune.remove(netGS.deconv2, name="weight")
+        prune.remove(netGS.deconv3, name="weight")
         torch.save(netGS, os.path.join(args.checkpoint, f'diff_iter/{iter}.pth'))
+        prune.random_unstructured(netGS.fc, name="weight", amount=0.5)
+        prune.random_unstructured(netGS.deconv1, name="weight", amount=0.5)
+        prune.random_unstructured(netGS.deconv2, name="weight", amount=0.5)
+        prune.random_unstructured(netGS.deconv3, name="weight", amount=0.5)
+
         with open(os.path.join(args.checkpoint, f'diff_iter/result.txt'), 'a') as f:
                 f.write(f"iter:{iter}, acc:{test_acc:.1f}%\n")
 
@@ -299,8 +319,18 @@ def main(args):
     ### Set up models
     print('gen_arch:' + gen_arch)
     netG = GeneratorDCGAN(z_dim=z_dim, model_dim=model_dim, num_classes=10)
-
     netGS = copy.deepcopy(netG)
+
+    prune.random_unstructured(netG.fc, name="weight", amount=0.5)
+    prune.random_unstructured(netG.deconv1, name="weight", amount=0.5)
+    prune.random_unstructured(netG.deconv2, name="weight", amount=0.5)
+    prune.random_unstructured(netG.deconv3, name="weight", amount=0.5)
+
+    prune.random_unstructured(netGS.fc, name="weight", amount=0.5)
+    prune.random_unstructured(netGS.deconv1, name="weight", amount=0.5)
+    prune.random_unstructured(netGS.deconv2, name="weight", amount=0.5)
+    prune.random_unstructured(netGS.deconv3, name="weight", amount=0.5)
+
     netD_list = []
     for i in range(num_discriminators):
         netD = DiscriminatorDCGAN()
@@ -502,7 +532,15 @@ def main(args):
 
         if iter % args.save_step == 0:
             ### save model
+            prune.remove(netGS.fc, name="weight")
+            prune.remove(netGS.deconv1, name="weight")
+            prune.remove(netGS.deconv2, name="weight")
+            prune.remove(netGS.deconv3, name="weight")
             torch.save(netGS.state_dict(), os.path.join(save_dir, 'netGS_%d.pth' % iter))
+            prune.random_unstructured(netGS.fc, name="weight", amount=0.5)
+            prune.random_unstructured(netGS.deconv1, name="weight", amount=0.5)
+            prune.random_unstructured(netGS.deconv2, name="weight", amount=0.5)
+            prune.random_unstructured(netGS.deconv3, name="weight", amount=0.5)
 
         del label, fake, noisev, noise, G, G_cost, D_cost
         torch.cuda.empty_cache()
@@ -511,6 +549,10 @@ def main(args):
             classify_training(netGS, dataset, iter+1)
 
     ### save model
+    prune.remove(netG.fc, name="weight")
+    prune.remove(netG.deconv1, name="weight")
+    prune.remove(netG.deconv2, name="weight")
+    prune.remove(netG.deconv3, name="weight")
     torch.save(netG, os.path.join(save_dir, 'netG.pth'))
     torch.save(netGS, os.path.join(save_dir, 'netGS.pth'))
 
@@ -519,4 +561,7 @@ if __name__ == '__main__':
     args = parse_arguments()
     save_config(args)
     main(args)
+
+
+
 

@@ -1,0 +1,5 @@
+#CUDA_VISIBLE_DEVICES=3,4 python main.py --dataset 'cifar_10' --load_dir ../pretrain_mnist/ResNet_default/ -ndis 200 -ngpu 2 -iter 20000 --checkpoint ./checkpoint/gs_checkpoint/cifar10/eps_1000 -noise 0.175935
+#CUDA_VISIBLE_DEVICES=3,4 python main.py --dataset 'cifar_10' --load_dir ../pretrain_mnist/ResNet_default/ -ndis 200 -ngpu 2 -iter 20000 --checkpoint ./checkpoint/gs_checkpoint/cifar10/eps_100 -noise 0.24162
+#CUDA_VISIBLE_DEVICES=3,4 python main.py --dataset 'cifar_10' --load_dir ../pretrain_mnist/ResNet_default/ -ndis 200 -ngpu 2 -iter 20000 --checkpoint ./checkpoint/gs_checkpoint/cifar10/eps_1 -noise 0.86
+#CUDA_VISIBLE_DEVICES=3,4 python main.py --dataset 'cifar_10' --load_dir ../pretrain_mnist/ResNet_default/ -ndis 200 -ngpu 2 -iter 20000 --checkpoint ./checkpoint/gs_checkpoint/cifar10/eps_inf -noise 0
+CUDA_VISIBLE_DEVICES=3,4 python main.py --dataset 'cifar_10' --load_dir ../pretrain_mnist/ResNet_default/ -ndis 200 -ngpu 2 -iter 20000 --checkpoint ./checkpoint/gs_checkpoint/cifar10/eps_10 -noise 0.427
