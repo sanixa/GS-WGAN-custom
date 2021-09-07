@@ -521,5 +521,140 @@ class ResNetResidualBlock(nn.Module):
         return x
 
 
+def weights_init(m):
+    classname = m.__class__.__name__
+    if classname.find('Conv') != -1:
+        m.weight.data.normal_(0.0, 0.02)
+    elif classname.find('BatchNorm') != -1:
+        m.weight.data.normal_(1.0, 0.02)
+        m.bias.data.fill_(0)
 
 
+class Flatten(nn.Module):
+    def forward(self, input):
+        return input.view(input.size()[0], -1)
+
+class Unflatten(nn.Module):
+    def forward(self, input):
+        return input.view(input.size()[0], 1, 28, 28)
+
+class Unflatten_7(nn.Module):
+    def forward(self, input):
+        return input.view(input.size()[0], -1, 7, 7)
+
+class Discriminator(nn.Module):
+    def __init__(self):
+        super(Discriminator, self).__init__()
+        '''
+        self.label_emb = nn.Sequential(
+            nn.Embedding(10, 50),
+            nn.Linear(50, 784),
+            Unflatten(),
+        )
+
+        self.model = nn.Sequential(
+            nn.Conv2d(2, 128, 3, 2, 1), #[128, 14, 14]
+            nn.LeakyReLU(),
+
+            nn.Conv2d(128, 128, 3, 2, 1), #[128, 7, 7]
+            nn.LeakyReLU(),
+
+            Flatten(),
+
+            nn.Dropout(0.4),
+            nn.Linear(7*7*128, 1),
+            nn.Sigmoid(),
+        )
+        '''
+        self.unflatten = Unflatten()
+        self.emb = nn.Embedding(10, 50)
+        self.linear_1 = nn.Linear(50, 784)
+
+        self.conv_1 = nn.Conv2d(2, 128, 3, 2, 1)
+        self.conv_2 = nn.Conv2d(128, 128, 3, 2, 1)
+        self.flatten = Flatten()
+        self.linear_2 = nn.Linear(7*7*128, 1)
+
+        self.apply(weights_init)
+
+    def forward(self, imgs, labels):
+        '''
+        labels = self.label_emb(labels)
+        data = torch.cat((imgs, labels), axis=1)
+        '''
+        labels = self.emb(labels)
+        labels = self.linear_1(labels)
+        labels = self.unflatten(labels)
+
+
+        data = torch.cat((imgs, labels), axis=1)
+        data = self.conv_1(data)
+        data = nn.LeakyReLU()(data)
+        data = self.conv_2(data)
+        data = nn.LeakyReLU()(data)
+        data = self.flatten(data)
+        data = nn.Dropout(0.4)(data)
+        data = self.linear_2(data)
+        data = nn.Sigmoid()(data)
+        return data
+
+    def calc_gradient_penalty(self, real_data, fake_data, y, L_gp, device):
+        '''
+        compute gradient penalty term
+        :param real_data:
+        :param fake_data:
+        :param y:
+        :param L_gp:
+        :param device:
+        :return:
+        '''
+
+        batchsize = real_data.shape[0]
+        real_data = real_data.to(device)
+        fake_data = fake_data.to(device)
+        y = y.to(device)
+        alpha = torch.rand(batchsize, 1)
+        alpha = alpha.to(device)
+
+        interpolates = alpha * real_data + ((1 - alpha) * fake_data)
+        interpolates = interpolates.to(device)
+        interpolates = autograd.Variable(interpolates, requires_grad=True)
+        disc_interpolates = self.forward(interpolates, y)
+
+        gradients = autograd.grad(outputs=disc_interpolates, inputs=interpolates,
+                                  grad_outputs=torch.ones(disc_interpolates.size()).to(device),
+                                  create_graph=True, retain_graph=True, only_inputs=True)[0]
+        gradients_norm = gradients.norm(2, dim=1)
+        gradient_penalty = ((gradients_norm - 1) ** 2).mean() * L_gp
+        return gradient_penalty
+
+class Generator(nn.Module):
+    def __init__(self):
+        super(Generator, self).__init__()
+
+        self.label_emb = nn.Sequential(
+            nn.Embedding(10, 50),
+            nn.Linear(50, 49),
+            Unflatten_7(),
+        )
+
+        self.linear = nn.Sequential(
+            nn.Linear(100, 7*7*128),
+            nn.LeakyReLU(),
+            Unflatten_7(),
+        )
+
+        self.model = nn.Sequential(
+            nn.ConvTranspose2d(129, 128, 4, 2, 1), #[128, 14, 14]
+            nn.LeakyReLU(),
+            nn.ConvTranspose2d(128, 128, 4, 2, 1), #[128, 28, 28]
+            nn.LeakyReLU(),
+            nn.Conv2d(128, 1, 7, 1, 3),
+            nn.Tanh(),
+        )
+        self.apply(weights_init)
+
+    def forward(self, z, labels):
+        labels, linear = self.label_emb(labels), self.linear(z)
+        data = torch.cat((linear, labels), axis=1)
+        return self.model(data)

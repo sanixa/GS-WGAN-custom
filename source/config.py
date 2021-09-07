@@ -13,13 +13,13 @@ def parse_arguments():
                         help=' dataset name')
     parser.add_argument('--num_discriminators', '-ndis', type=int, default=300, help='number of discriminators')
     parser.add_argument('--noise_multiplier', '-noise', type=float, default=0.175935, help='noise multiplier') #0.175935 for eps1000 #0.427 for eps10 #0.86 for eps1
-    parser.add_argument('--z_dim', '-zdim', type=int, default=12, help='latent code dimensionality')
+    parser.add_argument('--z_dim', '-zdim', type=int, default=100, help='latent code dimensionality')
     parser.add_argument('--model_dim', '-mdim', type=int, default=64, help='model dimensionality')
     parser.add_argument('--batchsize', '-bs', type=int, default=32, help='batch size')
     parser.add_argument('--L_gp', '-lgp', type=float, default=10, help='gradient penalty lambda hyperparameter')
     parser.add_argument('--L_epsilon', '-lep', type=float, default=0.001, help='epsilon penalty (used in PGGAN)')
     parser.add_argument('--critic_iters', '-diters', type=int, default=5, help='number of critic iters per gen iter')
-    parser.add_argument('--latent_type', '-latent', type=str, default='bernoulli', choices=['normal', 'bernoulli'],
+    parser.add_argument('--latent_type', '-latent', type=str, default='normal', choices=['normal', 'bernoulli'],
                         help='latent distribution')
     parser.add_argument('--iterations', '-iters', type=int, default=20000, help='iterations for training')
     parser.add_argument('--pretrain_iterations', '-piters', type=int, default=2000, help='iterations for pre-training')
@@ -27,7 +27,7 @@ def parse_arguments():
     parser.add_argument('--net_ids', '-ids', type=int, nargs='+', help='the index list for the discriminator')
     parser.add_argument('--print_step', '-pstep', type=int, default=100, help='number of steps to print')
     parser.add_argument('--vis_step', '-vstep', type=int, default=1000, help='number of steps to vis & eval')
-    parser.add_argument('--save_step', '-sstep', type=int, default=5000, help='number of steps to save')
+    parser.add_argument('--save_step', '-sstep', type=int, default=1000, help='number of steps to save')
     parser.add_argument('--load_dir', '-ldir', type=str, help='checkpoint dir (for loading pre-trained models)')
     parser.add_argument('--pretrain', action='store_true', default=False, help='if performing pre-training')
     parser.add_argument('--num_gpus', '-ngpus', type=int, default=1, help='number of gpus')

@@ -19,7 +19,7 @@ def savefig(fname, dpi=None):
 
 def inf_train_gen(trainloader):
     while True:
-        for images, targets in trainloader:
+        for images, targets in iter(trainloader):
             yield (images, targets)
 
 
@@ -33,7 +33,7 @@ def generate_image_mnist(iter, netG, fix_noise, save_dir, device, num_classes=10
 
     sample_list = []
     for class_id in range(num_classes):
-        label = torch.full((nrows,), class_id).to(device)
+        label = torch.full((nrows,), class_id).long().to(device)
         sample = netG(noise, label)
         sample = sample.view(batchsize, img_w, img_h)
         sample = sample.cpu().data.numpy()

@@ -141,21 +141,21 @@ class Classifier(nn.Module):
 FloatTensor = torch.cuda.FloatTensor
 LongTensor = torch.cuda.LongTensor
 
-
+'''
 
 def classify_training(netGS, dataset, iter):
     ### Data loaders
     if dataset == 'mnist' or dataset == 'fashionmnist':
         transform_train = transforms.Compose([
-        transforms.ToTensor(),
         transforms.CenterCrop((28, 28)),
+        transforms.ToTensor(),
         #transforms.Grayscale(),
         ])
     elif dataset == 'cifar_100' or dataset == 'cifar_10':
         transform_train = transforms.Compose([
-        transforms.ToTensor(),
         transforms.CenterCrop((28, 28)),
         transforms.Grayscale(),
+        transforms.ToTensor(),
         ])
 
     if dataset == 'mnist':
@@ -250,7 +250,7 @@ def classify_training(netGS, dataset, iter):
 
     del C, new_data, new_label, gen_set, gen_loader
     torch.cuda.empty_cache()
-
+'''
 
 ##########################################################
 ### main
@@ -331,15 +331,14 @@ def main(args):
     ### Data loaders
     if dataset == 'mnist' or dataset == 'fashionmnist':
         transform_train = transforms.Compose([
-        transforms.ToTensor(),
         transforms.CenterCrop((28, 28)),
+        transforms.ToTensor(),
         #transforms.Grayscale(),
         ])
     elif dataset == 'cifar_100' or dataset == 'cifar_10':
         transform_train = transforms.Compose([
-        transforms.ToTensor(),
-        transforms.CenterCrop((28, 28)),
         transforms.Grayscale(),
+        transforms.ToTensor(),
         ])
 
     if dataset == 'mnist':
@@ -359,7 +358,7 @@ def main(args):
         IMG_DIM = 3072
         NUM_CLASSES = 100
     elif dataset == 'cifar_10':
-        IMG_DIM = 784
+        IMG_DIM = 1024
         NUM_CLASSES = 10
         dataloader = datasets.CIFAR10
         trainset = dataloader(root=os.path.join(DATA_ROOT, 'CIFAR10'), train=True, download=True,
@@ -381,8 +380,8 @@ def main(args):
         indices = indices_full[start:end]
         trainloader = DataLoader(trainset, batch_size=args.batchsize, drop_last=False,
                                       num_workers=args.num_workers, sampler=SubsetRandomSampler(indices))
-        input_data = inf_train_gen(trainloader)
-        input_pipelines.append(input_data)
+        #input_data = inf_train_gen(trainloader)
+        input_pipelines.append(trainloader)
 
     if if_dp:
     ### Register hook
@@ -391,7 +390,7 @@ def main(args):
             netD.conv1.register_backward_hook(master_hook_adder)
 
     prg_bar = tqdm(range(args.iterations+1))
-    for iter in prg_bar:
+    for iters in prg_bar:
         #########################
         ### Update D network
         #########################
@@ -405,7 +404,7 @@ def main(args):
             p.requires_grad = True
 
         for iter_d in range(critic_iters):
-            real_data, real_y = next(input_data)
+            real_data, real_y = next(iter(input_data))
             real_data = real_data.view(-1, IMG_DIM)
             real_data = real_data.to(device)
             real_y = real_y.to(device)
@@ -483,32 +482,32 @@ def main(args):
         optimizerG.step()
 
         ### update the exponential moving average
-        exp_mov_avg(netGS, netG, alpha=0.999, global_step=iter)
+        exp_mov_avg(netGS, netG, alpha=0.999, global_step=iters)
 
         ############################
         ### Results visualization
         ############################
-        prg_bar.set_description('iter:{}, G_cost:{:.2f}, D_cost:{:.2f}, Wasserstein:{:.2f}'.format(iter, G_cost.cpu().data,
+        prg_bar.set_description('iter:{}, G_cost:{:.2f}, D_cost:{:.2f}, Wasserstein:{:.2f}'.format(iters, G_cost.cpu().data,
                                                                 D_cost.cpu().data,
                                                                 Wasserstein_D.cpu().data
                                                                 ))
-        if iter % args.vis_step == 0:
+        if iters % args.vis_step == 0:
             if dataset == 'mnist':
-                generate_image_mnist(iter, netGS, fix_noise, save_dir, device0)
+                generate_image_mnist(iters, netGS, fix_noise, save_dir, device0)
             elif dataset == 'cifar_100':
-                generate_image_cifar100(iter, netGS, fix_noise, save_dir, device0)
+                generate_image_cifar100(iters, netGS, fix_noise, save_dir, device0)
             elif dataset == 'cifar_10':
-                generate_image_mnist(iter, netGS, fix_noise, save_dir, device0)
+                generate_image_cifar10(iters, netGS, fix_noise, save_dir, device0)
 
-        if iter % args.save_step == 0:
+        if iters % args.save_step == 0:
             ### save model
-            torch.save(netGS.state_dict(), os.path.join(save_dir, 'netGS_%d.pth' % iter))
+            torch.save(netGS.state_dict(), os.path.join(save_dir, 'netGS_%d.pth' % iters))
 
         del label, fake, noisev, noise, G, G_cost, D_cost
         torch.cuda.empty_cache()
 
-        if ((iter+1) % 500 == 0):
-            classify_training(netGS, dataset, iter+1)
+        #if ((iters+1) % 500 == 0):
+        #    classify_training(netGS, dataset, iters+1)
 
     ### save model
     torch.save(netG, os.path.join(save_dir, 'netG.pth'))

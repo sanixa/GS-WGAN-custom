@@ -16,57 +16,8 @@ import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 import torch.utils.data as data_utils
 
-# python mc_attack.py 5 && python mc_attack.py 5 && python mc_attack.py 5 && python mc_attack.py 5 && sudo shutdown -P now
-'''
-exp_nos = int(sys.argv[1]) # how many different experiments ofr specific indexes
-instance_no = np.random.randint(10000)
-experiment = 'CIFAR10_MC_ATTACK_' + str(instance_no)
 
-sess = tf.Session(config=tf.ConfigProto(allow_soft_placement=True))
-gan = GAN(sess, epoch=3500, batch_size=100, dataset_name='cifar10',
-                      checkpoint_dir='checkpoint', result_dir='results', log_dir='logs', directory='./train', reuse=True)
-gan.build_model()
-gan.load_model()
 
-bs = 100
-image_dims = [32, 32, 3]
-inputs = tf.placeholder(tf.float32, [bs] + image_dims, name='sample_images')
-
-D_real, D_real_logits, _ = gan.discriminator(inputs, is_training=True, reuse=True)
-
-trX, trY, vaX, vaY = load_cifar10_with_validation('./train', reuse=True)
-teX = vaX[44000:]
-teY = vaY[44000:]
-vaX = vaX[:44000]
-vaY = vaY[:44000]
-
-dt = np.dtype([('instance_no', int),
-               ('exp_no', int),
-               ('method', int), # 1 = white box, 2 = euclidean_PCA, 3 = hog, 4 = euclidean_PCA category, 5 = hog category, 6 = ais
-               ('pca_n', int),
-               ('percentage_of_data', float),
-               ('percentile', float),
-               ('mc_euclidean_no_batches', int), # stuff
-               ('mc_hog_no_batches', int), # stuff
-               ('sigma_ais', float),
-               ('11_perc_mc_attack_log', float),
-               ('11_perc_mc_attack_eps', float),
-               ('11_perc_mc_attack_frac', float), 
-               ('50_perc_mc_attack_log', float), 
-               ('50_perc_mc_attack_eps', float),
-               ('50_perc_mc_attack_frac', float),
-               ('50_perc_white_box', float),
-               ('11_perc_white_box', float),
-               ('50_perc_ais', float),
-               ('50_perc_ais_acc_rate', float),
-               ('successfull_set_attack_1', float),
-               ('successfull_set_attack_2', float),
-               ('successfull_set_attack_3', float)
-              ])
-
-experiment_results = []
-'''
-experiment_results = []
 
 def print_elapsed_time():
     end_time = int(time.time())
@@ -205,7 +156,7 @@ def calc_batch_hist(images):
         
     return features
 
-def color_hist_attack(args, netG, trX, trY, vaX, vaY, teX, teY, mc_no_batches, mc_sample_size, exp_no, percentiles):
+def color_hist_attack(args, experiment_results, netG, trX, trY, vaX, vaY, teX, teY, mc_no_batches, mc_sample_size, exp_no, percentiles):
     vaX = vaX.permute(0, 2, 3, 1).cpu().detach().numpy()
     trX = trX.permute(0, 2, 3, 1).cpu().detach().numpy()
 
@@ -267,6 +218,8 @@ def color_hist_attack(args, netG, trX, trY, vaX, vaY, teX, teY, mc_no_batches, m
             os.makedirs(exp_dir)
         np.savetxt(os.path.join(exp_dir, args.name + '.csv'), np.array(experiment_results), fmt='%1.3f', delimiter=',')
 
+
+
     print('Calculating Results Matrices for flexible d_min...')
     distances = np.concatenate((distances_trX,distances_vaX))
     d_min = np.median([distances[i].min() for i in range(len(distances))])
@@ -289,7 +242,9 @@ def color_hist_attack(args, netG, trX, trY, vaX, vaY, teX, teY, mc_no_batches, m
         os.makedirs(exp_dir)
     np.savetxt(os.path.join(exp_dir, args.name + '.csv'), np.array(experiment_results), fmt='%1.3f', delimiter=',')
 
-def euclidean_PCA_mc_attack(args, n_components_pca, netG, trX, trY, vaX, vaY, teX, teY, exp_no, mc_euclidean_no_batches, mc_sample_size, percentiles):
+    return experiment_results
+
+def euclidean_PCA_mc_attack(args, experiment_results, n_components_pca, netG, trX, trY, vaX, vaY, teX, teY, exp_no, mc_euclidean_no_batches, mc_sample_size, percentiles):
     pca = PCA(n_components=n_components_pca)
     vaX = vaX.permute(0, 2, 3, 1)
     trX = trX.permute(0, 2, 3, 1)
@@ -359,6 +314,7 @@ def euclidean_PCA_mc_attack(args, n_components_pca, netG, trX, trY, vaX, vaY, te
             os.makedirs(exp_dir)
         np.savetxt(os.path.join(exp_dir, args.name + '.csv'), np.array(experiment_results), fmt='%1.3f', delimiter=',')
 
+
     print('Calculating Results Matrices for flexible d_min...')
     distances = np.concatenate((distances_trX,distances_vaX))
     d_min = np.median([distances[i].min() for i in range(len(distances))])
@@ -380,6 +336,8 @@ def euclidean_PCA_mc_attack(args, n_components_pca, netG, trX, trY, vaX, vaY, te
     if not os.path.isdir(exp_dir):
         os.makedirs(exp_dir)
     np.savetxt(os.path.join(exp_dir, args.name + '.csv'), np.array(experiment_results), fmt='%1.3f', delimiter=',')
+
+    return experiment_results
 
 
 def discriminate_for_wb(data_to_be_discriminated, training_indicator):
@@ -466,7 +424,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--name', type=str, default=None, help='exp name')
     parser.add_argument('--exp', type=str, default=None, help='exp output floder name')
-    parser.add_argument('--n', type=int, default=10, help='number of exp iteration')
+    parser.add_argument('--n', type=int, default=100, help='number of exp iteration')
     parser.add_argument('--dataset', type=str, default='cifar_10', help='dataset name')
     parser.add_argument('--load_dir', type=str, default=None, help='load generator path')
 
@@ -475,9 +433,9 @@ if __name__ == '__main__':
     ### Data loaders
     if args.dataset == 'mnist':
         transform_train = transforms.Compose([
-        transforms.ToTensor(),
         transforms.CenterCrop((28, 28)),
         #transforms.Grayscale(),
+        transforms.ToTensor(),
         ])
     elif args.dataset == 'cifar_10':
         transform_train = transforms.Compose([
@@ -536,7 +494,7 @@ if __name__ == '__main__':
     tr = testset
 
     start_time = int(time.time())
-
+    experiment_results = []
     for exp_no in range(args.n):
 
         trloader = DataLoader(tr, batch_size=100, shuffle=True)
@@ -547,12 +505,12 @@ if __name__ == '__main__':
         vaX, vaY = next(iter(valoader))
         teX, teY = next(iter(teloader))
 
-        euclidean_PCA_mc_attack(args, 120, netG, trX, trY, vaX, vaY, teX, teY, exp_no, 300, 10000, [])
+        experiment_results = euclidean_PCA_mc_attack(args, experiment_results, 120, netG, trX, trY, vaX, vaY, teX, teY, exp_no, 30, 10000, [])
         print(args.name+': Finished PCA Monte Carlo 120 in experiment %d of %d'%(exp_no+1, args.n))
 
         # color_hist_attack
         # 10000 cannot be changed easily!
-        #color_hist_attack(args, netG, trX, trY, vaX, vaY, teX, teY, 300, 10000, exp_no, [])#[1, 0.1, 0.01, 0.001])
+        #color_hist_attack(args, experiment_results, netG, trX, trY, vaX, vaY, teX, teY, 300, 10000, exp_no, [])#[1, 0.1, 0.01, 0.001])
         #print(args.name+': Finished Color Hist in experiment %d of %d'%(exp_no+1, args.n))
 
         print_elapsed_time()

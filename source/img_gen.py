@@ -14,6 +14,7 @@ def main(args):
 	model_dim = args.model_dim
 	load_dir = args.load_dir
 	num_gpus = args.num_gpus
+	latent_type = args.latent_type
 	
 	use_cuda = torch.cuda.is_available()
 	devices = [torch.device("cuda:%d" % i if use_cuda else "cpu") for i in range(num_gpus)]
@@ -30,8 +31,12 @@ def main(args):
 	#netG.load_state_dict(torch.load(load_dir))
 	netG = netG.to(device0)
 
-	bernoulli = torch.distributions.Bernoulli(torch.tensor([0.5]))
-
+	if latent_type == 'normal':
+		#fix_noise = torch.randn(10, z_dim)
+		pass
+	elif latent_type == 'bernoulli':
+		bernoulli = torch.distributions.Bernoulli(torch.tensor([0.5]))
+		
 	# eps = 1000
 	# dir_path = f'data/GS_eps{eps}'
 	dir_path = os.path.join(args.save_dir, load_dir.split('/')[-1].split('.')[0])
@@ -40,7 +45,10 @@ def main(args):
 	print(f'model path: {dir_path}')
 	print("producing training image...")
 	for i in tqdm(range(1, 6)):
-		noise = Variable(bernoulli.sample((2000, z_dim)).view(2000, z_dim).to(device0))
+		if latent_type == 'normal':
+			noise = Variable(torch.randn(2000, z_dim).to(device0))
+		elif latent_type == 'bernoulli':
+			noise = Variable(bernoulli.sample((2000, z_dim)).view(2000, z_dim).to(device0))
 		label = Variable(LongTensor(np.tile(np.arange(10), 200)).to(device0))
 		image = Variable(netG(noise, label))
 
@@ -59,7 +67,10 @@ def main(args):
 
 	print("producing testing image...")
 	for i in tqdm(range(1, 6)):
-		noise = Variable(bernoulli.sample((2000, z_dim)).view(2000, z_dim).to(device0))
+		if latent_type == 'normal':
+			noise = Variable(torch.randn(2000, z_dim).to(device0))
+		elif latent_type == 'bernoulli':
+			noise = Variable(bernoulli.sample((2000, z_dim)).view(2000, z_dim).to(device0))
 		label = Variable(LongTensor(np.tile(np.arange(10), 200)).to(device0))
 		image = Variable(netG(noise, label))
 
