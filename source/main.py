@@ -298,12 +298,18 @@ def main(args):
 
     ### Set up models
     print('gen_arch:' + gen_arch)
-    netG = GeneratorDCGAN(z_dim=z_dim, model_dim=model_dim, num_classes=10)
+    if dataset == 'mnist':
+        netG = GeneratorDCGAN(z_dim=z_dim, model_dim=model_dim, num_classes=10)
+    elif dataset == 'cifar_10':
+        netG = GeneratorDCGAN_cifar(z_dim=z_dim, model_dim=model_dim, num_classes=10)
 
     netGS = copy.deepcopy(netG)
     netD_list = []
     for i in range(num_discriminators):
-        netD = DiscriminatorDCGAN()
+        if dataset == 'mnist':
+            netD = DiscriminatorDCGAN()
+        elif dataset == 'cifar_10':
+            netD = DiscriminatorDCGAN_cifar()
         netD_list.append(netD)
 
     ### Load pre-trained discriminators
