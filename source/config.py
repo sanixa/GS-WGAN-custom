@@ -11,11 +11,11 @@ def parse_arguments():
     parser.add_argument('--random_seed', '-s', type=int, default=1, help='random seed')
     parser.add_argument('--dataset', '-data', type=str, default='mnist', choices=['mnist', 'fashionmnist', 'cifar_100', 'cifar_10'],
                         help=' dataset name')
-    parser.add_argument('--num_discriminators', '-ndis', type=int, default=300, help='number of discriminators')
+    parser.add_argument('--num_discriminators', '-ndis', type=int, default=1000, help='number of discriminators')
     parser.add_argument('--noise_multiplier', '-noise', type=float, default=0.175935, help='noise multiplier') #0.175935 for eps1000 #0.427 for eps10 #0.86 for eps1
     parser.add_argument('--z_dim', '-zdim', type=int, default=100, help='latent code dimensionality')
     parser.add_argument('--model_dim', '-mdim', type=int, default=64, help='model dimensionality')
-    parser.add_argument('--batchsize', '-bs', type=int, default=32, help='batch size')
+    parser.add_argument('--batchsize', '-bs', type=int, default=128, help='batch size')
     parser.add_argument('--L_gp', '-lgp', type=float, default=10, help='gradient penalty lambda hyperparameter')
     parser.add_argument('--L_epsilon', '-lep', type=float, default=0.001, help='epsilon penalty (used in PGGAN)')
     parser.add_argument('--critic_iters', '-diters', type=int, default=5, help='number of critic iters per gen iter')
