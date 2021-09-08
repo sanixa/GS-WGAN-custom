@@ -62,6 +62,7 @@ def main(args):
 			new_noise = np.concatenate((new_noise, noise.cpu().detach().numpy()), axis=0)
 
 	np.savez_compressed(f"{dir_path}/generated.npz", noise=new_noise, img_r01=new_image)
+
     
 	train_set, test_set = None, None
 	if args.dataset == 'mnist':
@@ -76,16 +77,29 @@ def main(args):
 		test_set = CIFAR10(root="./../data/CIFAR10", download=True, train=False, transform=transform)
 
 
+
 	train_loader = torch.utils.data.DataLoader(train_set, batch_size=10000, shuffle=True)
 	for data, target in train_loader:
 		np.save(f"{dir_path}/train_data.npy", data.cpu().detach().numpy())
 		np.save(f"{dir_path}/train_label.npy", target.cpu().detach().numpy())
+
 
 	test_loader = torch.utils.data.DataLoader(test_set, batch_size=10000, shuffle=True)
 	for data, target in test_loader:
 		np.save(f"{dir_path}/test_data.npy", data.cpu().detach().numpy())
 		np.save(f"{dir_path}/test_label.npy", target.cpu().detach().numpy())
 
+
+
+	train_loader = torch.utils.data.DataLoader(train_set, batch_size=10000, shuffle=True)
+	for data, target in train_loader:
+		np.save(f"{args.save_dir}/train_data.npy", data.cpu().detach().numpy())
+		np.save(f"{args.save_dir}/train_label.npy", target.cpu().detach().numpy())
+
+	test_loader = torch.utils.data.DataLoader(test_set, batch_size=10000, shuffle=True)
+	for data, target in test_loader:
+		np.save(f"{args.save_dir}/test_data.npy", data.cpu().detach().numpy())
+		np.save(f"{args.save_dir}/test_label.npy", target.cpu().detach().numpy())
 
 if __name__ == '__main__':
 	args = parse_arguments()
