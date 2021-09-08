@@ -39,9 +39,9 @@ def main(args):
 		
 	# eps = 1000
 	# dir_path = f'data/GS_eps{eps}'
-	dir_path = os.path.join(args.save_dir, load_dir.split('/')[-1].split('.')[0])
+	dir_path = os.path.join(args.save_dir, load_dir.split('/')[-1].split('.')[0].split('_')[1])
 	if not os.path.isdir(dir_path):
-		os.mkdir(dir_path)
+		os.makefirs(dir_path, exist_ok = True)
 	print(f'model path: {dir_path}')
 	print("producing training image...")
 	for i in tqdm(range(1, 6)):
@@ -62,41 +62,33 @@ def main(args):
 			new_noise = np.concatenate((new_noise, noise.cpu().detach().numpy()), axis=0)
 
 	np.savez_compressed(f"{dir_path}/generated.npz", noise=new_noise, img_r01=new_image)
-	'''
-	np.save(f"{dir_path}/train_data.npy", new_image)
-	np.save(f"{dir_path}/train_label.npy", new_label)
 
-	print("producing testing image...")
-	for i in tqdm(range(1, 6)):
-		if latent_type == 'normal':
-			noise = Variable(torch.randn(2000, z_dim).to(device0))
-		elif latent_type == 'bernoulli':
-			noise = Variable(bernoulli.sample((2000, z_dim)).view(2000, z_dim).to(device0))
-		label = Variable(LongTensor(np.tile(np.arange(10), 200)).to(device0))
-		image = Variable(netG(noise, label))
-
-		if (i == 1):
-			new_image = image.cpu().detach().numpy()
-			new_label = label.cpu().detach().numpy()
-		else:
-			new_image = np.concatenate((new_image, image.cpu().detach().numpy()), axis=0)
-			new_label = np.concatenate((new_label, label.cpu().detach().numpy()), axis=0)
-
-	np.save(f"{dir_path}/test_data.npy", new_image)
-	np.save(f"{dir_path}/test_label.npy", new_label)
-	'''
+    
 	train_set, test_set = None, None
 	if args.dataset == 'mnist':
 		transform = transforms.ToTensor()
-		train_set = MNIST(root="MNIST", download=True, train=True, transform=transform)
-		test_set = MNIST(root="MNIST", download=True, train=False, transform=transform)
+		train_set = MNIST(root="./../data/MNIST", download=True, train=True, transform=transform)
+		test_set = MNIST(root="./../data/MNIST", download=True, train=False, transform=transform)
 	elif args.dataset == 'cifar_10':
 		transform = transforms.Compose([
-						transforms.CenterCrop(28),
 						transforms.Grayscale(1),
 						transforms.ToTensor()])
-		train_set = CIFAR10(root="CIFAR10", download=True, train=True, transform=transform)
-		test_set = CIFAR10(root="CIFAR10", download=True, train=False, transform=transform)
+		train_set = CIFAR10(root="./../data/CIFAR10", download=True, train=True, transform=transform)
+		test_set = CIFAR10(root="./../data/CIFAR10", download=True, train=False, transform=transform)
+
+
+
+	train_loader = torch.utils.data.DataLoader(train_set, batch_size=10000, shuffle=True)
+	for data, target in train_loader:
+		np.save(f"{dir_path}/train_data.npy", data.cpu().detach().numpy())
+		np.save(f"{dir_path}/train_label.npy", target.cpu().detach().numpy())
+
+
+	test_loader = torch.utils.data.DataLoader(test_set, batch_size=10000, shuffle=True)
+	for data, target in test_loader:
+		np.save(f"{dir_path}/test_data.npy", data.cpu().detach().numpy())
+		np.save(f"{dir_path}/test_label.npy", target.cpu().detach().numpy())
+
 
 
 	train_loader = torch.utils.data.DataLoader(train_set, batch_size=10000, shuffle=True)

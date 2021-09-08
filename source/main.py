@@ -31,8 +31,8 @@ acc_milestone = [i for i in range(10, 100, 10)]
 acc_passed = [False for i in range(1, 10)]
 
 ##########################################################
-### hook functions
-##########################################################
+# ## hook functions
+# #########################################################
 def master_hook_adder(module, grad_input, grad_output):
     '''
     global hook
@@ -253,8 +253,8 @@ def classify_training(netGS, dataset, iter):
 '''
 
 ##########################################################
-### main
-##########################################################
+# ## main
+# #########################################################
 def main(args):
     ### config
     global noise_multiplier
@@ -343,6 +343,7 @@ def main(args):
         ])
     elif dataset == 'cifar_100' or dataset == 'cifar_10':
         transform_train = transforms.Compose([
+        transforms.Resize(28),
         transforms.Grayscale(),
         transforms.ToTensor(),
         ])
@@ -364,7 +365,7 @@ def main(args):
         IMG_DIM = 3072
         NUM_CLASSES = 100
     elif dataset == 'cifar_10':
-        IMG_DIM = 1024
+        IMG_DIM = 784
         NUM_CLASSES = 10
         dataloader = datasets.CIFAR10
         trainset = dataloader(root=os.path.join(DATA_ROOT, 'CIFAR10'), train=True, download=True,
@@ -503,7 +504,7 @@ def main(args):
             elif dataset == 'cifar_100':
                 generate_image_cifar100(iters, netGS, fix_noise, save_dir, device0)
             elif dataset == 'cifar_10':
-                generate_image_cifar10(iters, netGS, fix_noise, save_dir, device0)
+                generate_image_mnist(iters, netGS, fix_noise, save_dir, device0)
 
         if iters % args.save_step == 0:
             ### save model

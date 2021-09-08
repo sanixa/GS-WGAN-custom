@@ -1,5 +1,13 @@
-#CUDA_VISIBLE_DEVICES=2 python main.py --dataset 'mnist' --load_dir ../pretrain_mnist/ResNet_default/ -ndis 200 -ngpu 1 -iter 20000 --checkpoint ./checkpoint/gs_checkpoint/mnist/eps_1000 -noise 0.175935
-#CUDA_VISIBLE_DEVICES=2 python main.py --dataset 'mnist' --load_dir ../pretrain_mnist/ResNet_default/ -ndis 200 -ngpu 1 -iter 20000 --checkpoint ./checkpoint/gs_checkpoint/mnist/eps_100 -noise 0.24162
-#CUDA_VISIBLE_DEVICES=2 python main.py --dataset 'mnist' --load_dir ../pretrain_mnist/ResNet_default/ -ndis 200 -ngpu 1 -iter 20000 --checkpoint ./checkpoint/gs_checkpoint/mnist/eps_1 -noise 0.86
+#CUDA_VISIBLE_DEVICES=2 python main.py --dataset 'mnist' --load_dir ../pretrain_mnist/ResNet_default/ -ndis 200 -ngpu 1 -iter 20000 --checkpoint ./checkpoint/gs_checkpoint/mnist/eps_1000 -noise 0.41
+#CUDA_VISIBLE_DEVICES=2 python main.py --dataset 'mnist' --load_dir ../pretrain_mnist/ResNet_default/ -ndis 200 -ngpu 1 -iter 20000 --checkpoint ./checkpoint/gs_checkpoint/mnist/eps_100 -noise 0.531
+#CUDA_VISIBLE_DEVICES=2 python main.py --dataset 'mnist' --load_dir ../pretrain_mnist/ResNet_default/ -ndis 200 -ngpu 1 -iter 20000 --checkpoint ./checkpoint/gs_checkpoint/mnist/eps_1 -noise 14.5
 #CUDA_VISIBLE_DEVICES=2 python main.py --dataset 'mnist' --load_dir ../pretrain_mnist/ResNet_default/ -ndis 200 -ngpu 1 -iter 20000 --checkpoint ./checkpoint/gs_checkpoint/mnist/eps_inf -noise 0
-CUDA_VISIBLE_DEVICES=2 python main_fix11_2_optimG.py --dataset 'mnist' -latent normal -ndis 1 -ngpu 1 -iter 20000 --checkpoint ./checkpoint/gs_checkpoint/mnist/eps_10 -noise 0.427
+#CUDA_VISIBLE_DEVICES=0 python main.py --dataset 'mnist' -latent bernoulli -ndis 1000 -ngpu 1 -iter 20000 --exp_name main_eps_10 -noise 1.45
+#CUDA_VISIBLE_DEVICES=0 python main.py --dataset 'mnist' -latent bernoulli -ndis 1000 -ngpu 1 -iter 20000 --exp_name main_eps_1 -noise 14.5
+#CUDA_VISIBLE_DEVICES=1 python main.py --dataset 'mnist' -latent bernoulli -ndis 1000 -ngpu 1 -iter 20000 --exp_name main_eps_inf -noise 0
+#CUDA_VISIBLE_DEVICES=0 python main.py --dataset 'mnist' -latent bernoulli -ndis 1000 -ngpu 1 -iter 20000 --exp_name main_eps_100 -noise 0.531
+#CUDA_VISIBLE_DEVICES=0 python main.py --dataset 'mnist' -latent bernoulli -ndis 1000 -ngpu 1 -iter 20000 -zdim 32 --exp_name main_eps_1000_z32 -noise 0.41
+#CUDA_VISIBLE_DEVICES=0 python main.py --dataset 'mnist' -latent bernoulli -ndis 1000 -ngpu 1 -iter 20000 -zdim 32 --exp_name main_eps_100_z32 -noise 0.531
+#CUDA_VISIBLE_DEVICES=0 python main.py --dataset 'mnist' -latent bernoulli -ndis 1000 -ngpu 1 -iter 20000 -zdim 32 --exp_name main_n_02_z32 -noise 0.2
+#CUDA_VISIBLE_DEVICES=0 python main.py --dataset 'mnist' -latent bernoulli -ndis 1000 -ngpu 1 -iter 20000 -zdim 32 --exp_name main_eps_10_z32 -noise 1.45
+CUDA_VISIBLE_DEVICES=0 python main.py --dataset 'mnist' -latent bernoulli -ndis 1000 -ngpu 1 -iter 20000 -zdim 32 --exp_name main_eps_1_z32 -noise 14.5
