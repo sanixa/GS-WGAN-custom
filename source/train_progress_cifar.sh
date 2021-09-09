@@ -6,6 +6,10 @@
 #CUDA_VISIBLE_DEVICES=0 python main.py --dataset 'cifar_10' -latent bernoulli -ndis 1000 -ngpu 1 -iter 20000 --exp_name main_eps_1 -noise 14.5
 #CUDA_VISIBLE_DEVICES=0 python main.py --dataset 'cifar_10' -latent bernoulli -ndis 1000 -ngpu 1 -iter 20000 --exp_name main_eps_inf -noise 0
 #CUDA_VISIBLE_DEVICES=0 python main.py --dataset 'cifar_10' -latent bernoulli -ndis 1000 -ngpu 1 -iter 20000 -zdim 100 --exp_name main_eps_inf_z100 -noise 0
+CUDA_VISIBLE_DEVICES=0 python main.py --dataset 'cifar_10' -latent bernoulli -ndis 1000 -ngpu 1 -iter 20000 -zdim 100 --exp_name main_eps_1000_z100 -noise 0.41
 CUDA_VISIBLE_DEVICES=0 python main.py --dataset 'cifar_10' -latent bernoulli -ndis 1000 -ngpu 1 -iter 20000 -zdim 100 --exp_name main_eps_100_z100 -noise 0.531
 CUDA_VISIBLE_DEVICES=0 python main.py --dataset 'cifar_10' -latent bernoulli -ndis 1000 -ngpu 1 -iter 20000 -zdim 100 --exp_name main_eps_10_z100 -noise 1.45
 CUDA_VISIBLE_DEVICES=0 python main.py --dataset 'cifar_10' -latent bernoulli -ndis 1000 -ngpu 1 -iter 20000 -zdim 100 --exp_name main_eps_1_z100 -noise 14.5
+CUDA_VISIBLE_DEVICES=0 python main.py --dataset 'cifar_10' -latent bernoulli -ndis 1000 -ngpu 1 -iter 20000 -zdim 100 --exp_name main_n_01_z100 -noise 0.1
+CUDA_VISIBLE_DEVICES=0 python main.py --dataset 'cifar_10' -latent bernoulli -ndis 1000 -ngpu 1 -iter 20000 -zdim 100 --exp_name main_n_02_z100 -noise 0.2
+CUDA_VISIBLE_DEVICES=0 python main.py --dataset 'cifar_10' -latent bernoulli -ndis 1000 -ngpu 1 -iter 20000 -zdim 100 --exp_name main_n_001_z100 -noise 0.01

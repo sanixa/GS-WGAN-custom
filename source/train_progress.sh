@@ -10,4 +10,5 @@
 #CUDA_VISIBLE_DEVICES=0 python main.py --dataset 'mnist' -latent bernoulli -ndis 1000 -ngpu 1 -iter 20000 -zdim 32 --exp_name main_eps_100_z32 -noise 0.531
 #CUDA_VISIBLE_DEVICES=0 python main.py --dataset 'mnist' -latent bernoulli -ndis 1000 -ngpu 1 -iter 20000 -zdim 32 --exp_name main_n_02_z32 -noise 0.2
 #CUDA_VISIBLE_DEVICES=0 python main.py --dataset 'mnist' -latent bernoulli -ndis 1000 -ngpu 1 -iter 20000 -zdim 32 --exp_name main_eps_10_z32 -noise 1.45
-CUDA_VISIBLE_DEVICES=0 python main.py --dataset 'mnist' -latent bernoulli -ndis 1000 -ngpu 1 -iter 20000 -zdim 32 --exp_name main_eps_1_z32 -noise 14.5
+#CUDA_VISIBLE_DEVICES=0 python main.py --dataset 'mnist' -latent bernoulli -ndis 1000 -ngpu 1 -iter 20000 -zdim 32 --exp_name main_eps_1_z32 -noise 14.5
+CUDA_VISIBLE_DEVICES=0 python main.py --dataset 'mnist' -latent bernoulli -ndis 1000 -ngpu 1 -iter 20000 -zdim 32 --exp_name main_eps_inf_z32 -noise 0

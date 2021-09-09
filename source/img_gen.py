@@ -1,3 +1,4 @@
+# +
 import os, sys
 import numpy as np
 import random
@@ -5,9 +6,140 @@ import torch
 from torch.autograd import Variable
 from tqdm import tqdm
 
+import torchvision.transforms as transforms
+from torchvision.datasets import CIFAR10, MNIST
+# -
+
 from config import *
 from models import *
 from utils import *
+
+class GeneratorDCGAN(nn.Module):
+    def __init__(self, z_dim=10, model_dim=64, num_classes=10, outact=nn.Sigmoid()):
+        super(GeneratorDCGAN, self).__init__()
+
+        self.cdist = nn.CosineSimilarity(dim = 1, eps= 1e-9)
+        self.grads = []
+        self.grad_dict = {}
+
+        self.model_dim = model_dim
+        self.z_dim = z_dim
+        self.num_classes = num_classes
+
+        fc = nn.Linear(z_dim + num_classes, 4 * 4 * 4 * model_dim)
+        deconv1 = nn.ConvTranspose2d(4 * model_dim, 2 * model_dim, 5)
+        deconv2 = nn.ConvTranspose2d(2 * model_dim, model_dim, 5)
+        deconv3 = nn.ConvTranspose2d(model_dim, IMG_C, 8, stride=2)
+
+        self.deconv1 = deconv1
+        self.deconv2 = deconv2
+        self.deconv3 = deconv3
+        self.fc = fc
+        self.relu = nn.ReLU()
+        self.outact = outact
+
+    def forward(self, z, y):
+        y_onehot = one_hot_embedding(y, self.num_classes)
+        z_in = torch.cat([z, y_onehot], dim=1)
+        output = self.fc(z_in)
+        output = output.view(-1, 4 * self.model_dim, 4, 4)
+        output = self.relu(output)
+        output = pixel_norm(output)
+
+        output = self.deconv1(output)
+        output = output[:, :, :7, :7]
+        output = self.relu(output)
+        output = pixel_norm(output)
+
+        output = self.deconv2(output)
+        output = self.relu(output).contiguous()
+        output = pixel_norm(output)
+
+        output = self.deconv3(output)
+        output = self.outact(output)
+        return output.view(-1, IMG_W * IMG_H)
+
+
+#@torchsnooper.snoop()
+class GeneratorDCGAN_cifar(nn.Module):
+    def __init__(self, z_dim=10, model_dim=64, num_classes=10, outact=nn.Tanh()):
+        super(GeneratorDCGAN_cifar, self).__init__()
+
+        self.cdist = nn.CosineSimilarity(dim = 1, eps= 1e-9)
+        self.grads = []
+        self.grad_dict = {}
+
+        self.model_dim = model_dim
+        self.z_dim = z_dim
+        self.num_classes = num_classes
+
+        fc = nn.Linear(z_dim + num_classes, z_dim * 1 * 1)
+        deconv1 = nn.ConvTranspose2d(z_dim, model_dim * 4, 4, 1, 0, bias=False)
+        deconv2 = nn.ConvTranspose2d(model_dim * 4, model_dim * 2, 4, 2, 1, bias=False)
+        deconv3 = nn.ConvTranspose2d(model_dim * 2, model_dim, 4, 2, 1, bias=False)
+        deconv4 = nn.ConvTranspose2d(model_dim, 1, 4, 2, 1, bias=False)
+
+        self.deconv1 = deconv1
+        self.deconv2 = deconv2
+        self.deconv3 = deconv3
+        self.deconv4 = deconv4
+        self.BN_1 = nn.BatchNorm2d(model_dim * 4)
+        self.BN_2 = nn.BatchNorm2d(model_dim * 2)
+        self.BN_3 = nn.BatchNorm2d(model_dim)
+        self.fc = fc
+        self.relu = nn.ReLU()
+        self.outact = outact
+
+        ''' reference by https://github.com/Ksuryateja/DCGAN-CIFAR10-pytorch/blob/master/gan_cifar.py
+        nn.ConvTranspose2d(z_dim, model_dim * 8, 4, 1, 0, bias=False),
+        nn.BatchNorm2d(model_dim * 8),
+        nn.ReLU(True),
+        # state size. (ngf*8) x 4 x 4
+        nn.ConvTranspose2d(model_dim * 8, model_dim * 4, 4, 2, 1, bias=False),
+        nn.BatchNorm2d(model_dim * 4),
+        nn.ReLU(True),
+        # state size. (ngf*4) x 8 x 8
+        nn.ConvTranspose2d(model_dim * 4, model_dim * 2, 4, 2, 1, bias=False),
+        nn.BatchNorm2d(model_dim * 2),
+        nn.ReLU(True),
+        # state size. (ngf*2) x 16 x 16
+        nn.ConvTranspose2d(model_dim * 2, model_dim, 4, 2, 1, bias=False),
+        nn.BatchNorm2d(model_dim),
+        nn.ReLU(True),
+        # state size. (ngf) x 32 x 32
+        nn.ConvTranspose2d(model_dim, nc, 4, 2, 1, bias=False),
+        nn.Tanh()
+        # state size. (nc) x 64 x 64
+        '''
+
+    def forward(self, z, y):
+        y_onehot = one_hot_embedding(y, self.num_classes)
+        z_in = torch.cat([z, y_onehot], dim=1)
+        output = self.fc(z_in)
+        output = output.view(-1, self.z_dim, 1, 1)
+        output = self.relu(output)
+        output = pixel_norm(output)
+
+        output = self.deconv1(output)
+        output = self.BN_1(output)
+        output = self.relu(output)
+        output = pixel_norm(output)
+
+        output = self.deconv2(output)
+        output = self.BN_2(output)
+        output = self.relu(output)
+        output = pixel_norm(output)
+
+        output = self.deconv3(output)
+        output = self.BN_3(output)
+        output = self.relu(output)
+        output = pixel_norm(output)
+
+        output = self.deconv4(output)
+        output = self.outact(output)
+
+        return output.view(-1, 32 * 32)
+
 
 def main(args):
 	z_dim = args.z_dim
@@ -19,16 +151,20 @@ def main(args):
 	use_cuda = torch.cuda.is_available()
 	devices = [torch.device("cuda:%d" % i if use_cuda else "cpu") for i in range(num_gpus)]
 	device0 = devices[0]
-	if use_cuda:
-		torch.set_default_tensor_type('torch.cuda.FloatTensor')
+#	if use_cuda:
+#		torch.set_default_tensor_type('torch.cuda.FloatTensor')
 
 	LongTensor = torch.cuda.LongTensor
 
 	print("loading model...")
-	#netG = GeneratorDCGAN_TS(z_dim=z_dim, model_dim=model_dim, num_classes=10)
+	if args.dataset == 'mnist':
+		netG = GeneratorDCGAN(z_dim=z_dim, model_dim=model_dim, num_classes=10)
+	elif args.dataset == 'cifar_10':
+		netG = GeneratorDCGAN_cifar(z_dim=z_dim, model_dim=model_dim, num_classes=10)
+    
 	#network_path = os.path.join(load_dir, 'netGS.pth')
-	netG = torch.load(load_dir)
-	#netG.load_state_dict(torch.load(load_dir))
+	#netG = torch.load(load_dir)
+	netG.load_state_dict(torch.load(load_dir))
 	netG = netG.to(device0)
 
 	if latent_type == 'normal':
@@ -41,7 +177,7 @@ def main(args):
 	# dir_path = f'data/GS_eps{eps}'
 	dir_path = os.path.join(args.save_dir, load_dir.split('/')[-1].split('.')[0].split('_')[1])
 	if not os.path.isdir(dir_path):
-		os.makefirs(dir_path, exist_ok = True)
+		os.makedirs(dir_path, exist_ok = True)
 	print(f'model path: {dir_path}')
 	print("producing training image...")
 	for i in tqdm(range(1, 6)):
@@ -88,18 +224,6 @@ def main(args):
 	for data, target in test_loader:
 		np.save(f"{dir_path}/test_data.npy", data.cpu().detach().numpy())
 		np.save(f"{dir_path}/test_label.npy", target.cpu().detach().numpy())
-
-
-
-	train_loader = torch.utils.data.DataLoader(train_set, batch_size=10000, shuffle=True)
-	for data, target in train_loader:
-		np.save(f"{args.save_dir}/train_data.npy", data.cpu().detach().numpy())
-		np.save(f"{args.save_dir}/train_label.npy", target.cpu().detach().numpy())
-
-	test_loader = torch.utils.data.DataLoader(test_set, batch_size=10000, shuffle=True)
-	for data, target in test_loader:
-		np.save(f"{args.save_dir}/test_data.npy", data.cpu().detach().numpy())
-		np.save(f"{args.save_dir}/test_label.npy", target.cpu().detach().numpy())
 
 if __name__ == '__main__':
 	args = parse_arguments()
