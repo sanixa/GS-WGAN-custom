@@ -508,6 +508,7 @@ def main(args):
         if iters % args.save_step == 0:
             ### save model
             torch.save(netGS.state_dict(), os.path.join(save_dir, 'netGS_%d.pth' % iters))
+            torch.save(netD.state_dict(), os.path.join(save_dir, 'netD_%d.pth' % iters))
 
         del label, fake, noisev, noise, G, G_cost, D_cost
         torch.cuda.empty_cache()
@@ -524,4 +525,5 @@ if __name__ == '__main__':
     args = parse_arguments()
     save_config(args)
     main(args)
+
 

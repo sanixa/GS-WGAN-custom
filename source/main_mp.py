@@ -10,6 +10,7 @@ from torch.utils.data import DataLoader, Dataset, TensorDataset
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 from torch.utils.data.sampler import SubsetRandomSampler
+
 import torch.nn.utils.prune as prune
 import torch.nn.functional as F
 
@@ -33,8 +34,8 @@ acc_milestone = [i for i in range(10, 100, 10)]
 acc_passed = [False for i in range(1, 10)]
 
 ##########################################################
-### hook functions
-##########################################################
+# ## hook functions
+# #########################################################
 def master_hook_adder(module, grad_input, grad_output):
     '''
     global hook
@@ -143,21 +144,21 @@ class Classifier(nn.Module):
 FloatTensor = torch.cuda.FloatTensor
 LongTensor = torch.cuda.LongTensor
 
-
+'''
 
 def classify_training(netGS, dataset, iter):
     ### Data loaders
     if dataset == 'mnist' or dataset == 'fashionmnist':
         transform_train = transforms.Compose([
-        transforms.ToTensor(),
         transforms.CenterCrop((28, 28)),
+        transforms.ToTensor(),
         #transforms.Grayscale(),
         ])
     elif dataset == 'cifar_100' or dataset == 'cifar_10':
         transform_train = transforms.Compose([
-        transforms.ToTensor(),
         transforms.CenterCrop((28, 28)),
         transforms.Grayscale(),
+        transforms.ToTensor(),
         ])
 
     if dataset == 'mnist':
@@ -241,40 +242,22 @@ def classify_training(netGS, dataset, iter):
     for i in range(9):
         if (test_acc > acc_milestone[i] and acc_passed[i] == False):
             acc_passed[i] = True
-            prune.remove(netGS.fc, name="weight")
-            prune.remove(netGS.deconv1, name="weight")
-            prune.remove(netGS.deconv2, name="weight")
-            prune.remove(netGS.deconv3, name="weight")
             torch.save(netGS, os.path.join(args.checkpoint, f'diff_acc/{acc_milestone[i]}.pth'))
-            prune.random_unstructured(netGS.fc, name="weight", amount=0.5)
-            prune.random_unstructured(netGS.deconv1, name="weight", amount=0.5)
-            prune.random_unstructured(netGS.deconv2, name="weight", amount=0.5)
-            prune.random_unstructured(netGS.deconv3, name="weight", amount=0.5)
-
             with open(os.path.join(args.checkpoint, f'diff_acc/result.txt'), 'a') as f:
                 f.write(f"thres:{acc_milestone[i]}% iter:{iter}, acc:{test_acc:.1f}%\n")
 
     if (iter in iter_milestone):
-        prune.remove(netGS.fc, name="weight")
-        prune.remove(netGS.deconv1, name="weight")
-        prune.remove(netGS.deconv2, name="weight")
-        prune.remove(netGS.deconv3, name="weight")
         torch.save(netGS, os.path.join(args.checkpoint, f'diff_iter/{iter}.pth'))
-        prune.random_unstructured(netGS.fc, name="weight", amount=0.5)
-        prune.random_unstructured(netGS.deconv1, name="weight", amount=0.5)
-        prune.random_unstructured(netGS.deconv2, name="weight", amount=0.5)
-        prune.random_unstructured(netGS.deconv3, name="weight", amount=0.5)
-
         with open(os.path.join(args.checkpoint, f'diff_iter/result.txt'), 'a') as f:
                 f.write(f"iter:{iter}, acc:{test_acc:.1f}%\n")
 
     del C, new_data, new_label, gen_set, gen_loader
     torch.cuda.empty_cache()
-
+'''
 
 ##########################################################
-### main
-##########################################################
+# ## main
+# #########################################################
 def main(args):
     ### config
     global noise_multiplier
@@ -318,22 +301,43 @@ def main(args):
 
     ### Set up models
     print('gen_arch:' + gen_arch)
-    netG = GeneratorDCGAN(z_dim=z_dim, model_dim=model_dim, num_classes=10)
+    if dataset == 'mnist':
+        netG = GeneratorDCGAN(z_dim=z_dim, model_dim=model_dim, num_classes=10)
+    elif dataset == 'cifar_10':
+        netG = GeneratorDCGAN_cifar(z_dim=z_dim, model_dim=model_dim, num_classes=10)
+
     netGS = copy.deepcopy(netG)
 
-    prune.random_unstructured(netG.fc, name="weight", amount=0.5)
-    prune.random_unstructured(netG.deconv1, name="weight", amount=0.5)
-    prune.random_unstructured(netG.deconv2, name="weight", amount=0.5)
-    prune.random_unstructured(netG.deconv3, name="weight", amount=0.5)
+    ##prune
+    if dataset == 'mnist':
+        prune.random_unstructured(netG.fc, name="weight", amount=0.5)
+        prune.random_unstructured(netG.deconv1, name="weight", amount=0.5)
+        prune.random_unstructured(netG.deconv2, name="weight", amount=0.5)
+        prune.random_unstructured(netG.deconv3, name="weight", amount=0.5)
 
-    prune.random_unstructured(netGS.fc, name="weight", amount=0.5)
-    prune.random_unstructured(netGS.deconv1, name="weight", amount=0.5)
-    prune.random_unstructured(netGS.deconv2, name="weight", amount=0.5)
-    prune.random_unstructured(netGS.deconv3, name="weight", amount=0.5)
+        prune.random_unstructured(netGS.fc, name="weight", amount=0.5)
+        prune.random_unstructured(netGS.deconv1, name="weight", amount=0.5)
+        prune.random_unstructured(netGS.deconv2, name="weight", amount=0.5)
+        prune.random_unstructured(netGS.deconv3, name="weight", amount=0.5)
+    elif dataset == 'cifar_10':
+        prune.random_unstructured(netG.fc, name="weight", amount=0.5)
+        prune.random_unstructured(netG.deconv1, name="weight", amount=0.5)
+        prune.random_unstructured(netG.deconv2, name="weight", amount=0.5)
+        prune.random_unstructured(netG.deconv3, name="weight", amount=0.5)
+        prune.random_unstructured(netG.deconv4, name="weight", amount=0.5)
+
+        prune.random_unstructured(netGS.fc, name="weight", amount=0.5)
+        prune.random_unstructured(netGS.deconv1, name="weight", amount=0.5)
+        prune.random_unstructured(netGS.deconv2, name="weight", amount=0.5)
+        prune.random_unstructured(netGS.deconv3, name="weight", amount=0.5)
+        prune.random_unstructured(netGS.deconv4, name="weight", amount=0.5)
 
     netD_list = []
     for i in range(num_discriminators):
-        netD = DiscriminatorDCGAN()
+        if dataset == 'mnist':
+            netD = DiscriminatorDCGAN()
+        elif dataset == 'cifar_10':
+            netD = DiscriminatorDCGAN_cifar()
         netD_list.append(netD)
 
     ### Load pre-trained discriminators
@@ -361,15 +365,14 @@ def main(args):
     ### Data loaders
     if dataset == 'mnist' or dataset == 'fashionmnist':
         transform_train = transforms.Compose([
-        transforms.ToTensor(),
         transforms.CenterCrop((28, 28)),
+        transforms.ToTensor(),
         #transforms.Grayscale(),
         ])
     elif dataset == 'cifar_100' or dataset == 'cifar_10':
         transform_train = transforms.Compose([
-        transforms.ToTensor(),
-        transforms.CenterCrop((28, 28)),
         transforms.Grayscale(),
+        transforms.ToTensor(),
         ])
 
     if dataset == 'mnist':
@@ -389,7 +392,7 @@ def main(args):
         IMG_DIM = 3072
         NUM_CLASSES = 100
     elif dataset == 'cifar_10':
-        IMG_DIM = 784
+        IMG_DIM = 1024
         NUM_CLASSES = 10
         dataloader = datasets.CIFAR10
         trainset = dataloader(root=os.path.join(DATA_ROOT, 'CIFAR10'), train=True, download=True,
@@ -411,8 +414,8 @@ def main(args):
         indices = indices_full[start:end]
         trainloader = DataLoader(trainset, batch_size=args.batchsize, drop_last=False,
                                       num_workers=args.num_workers, sampler=SubsetRandomSampler(indices))
-        input_data = inf_train_gen(trainloader)
-        input_pipelines.append(input_data)
+        #input_data = inf_train_gen(trainloader)
+        input_pipelines.append(trainloader)
 
     if if_dp:
     ### Register hook
@@ -421,7 +424,7 @@ def main(args):
             netD.conv1.register_backward_hook(master_hook_adder)
 
     prg_bar = tqdm(range(args.iterations+1))
-    for iter in prg_bar:
+    for iters in prg_bar:
         #########################
         ### Update D network
         #########################
@@ -435,7 +438,7 @@ def main(args):
             p.requires_grad = True
 
         for iter_d in range(critic_iters):
-            real_data, real_y = next(input_data)
+            real_data, real_y = next(iter(input_data))
             real_data = real_data.view(-1, IMG_DIM)
             real_data = real_data.to(device)
             real_y = real_y.to(device)
@@ -513,55 +516,74 @@ def main(args):
         optimizerG.step()
 
         ### update the exponential moving average
-        exp_mov_avg(netGS, netG, alpha=0.999, global_step=iter)
+        exp_mov_avg(netGS, netG, alpha=0.999, global_step=iters)
 
         ############################
         ### Results visualization
         ############################
-        prg_bar.set_description('iter:{}, G_cost:{:.2f}, D_cost:{:.2f}, Wasserstein:{:.2f}'.format(iter, G_cost.cpu().data,
+        prg_bar.set_description('iter:{}, G_cost:{:.2f}, D_cost:{:.2f}, Wasserstein:{:.2f}'.format(iters, G_cost.cpu().data,
                                                                 D_cost.cpu().data,
                                                                 Wasserstein_D.cpu().data
                                                                 ))
-        if iter % args.vis_step == 0:
+        if iters % args.vis_step == 0:
             if dataset == 'mnist':
-                generate_image_mnist(iter, netGS, fix_noise, save_dir, device0)
+                generate_image_mnist(iters, netGS, fix_noise, save_dir, device0)
             elif dataset == 'cifar_100':
-                generate_image_cifar100(iter, netGS, fix_noise, save_dir, device0)
+                generate_image_cifar100(iters, netGS, fix_noise, save_dir, device0)
             elif dataset == 'cifar_10':
-                generate_image_mnist(iter, netGS, fix_noise, save_dir, device0)
+                generate_image_cifar10(iters, netGS, fix_noise, save_dir, device0)
 
-        if iter % args.save_step == 0:
+        if iters % args.save_step == 0:
             ### save model
-            prune.remove(netGS.fc, name="weight")
-            prune.remove(netGS.deconv1, name="weight")
-            prune.remove(netGS.deconv2, name="weight")
-            prune.remove(netGS.deconv3, name="weight")
-            torch.save(netGS.state_dict(), os.path.join(save_dir, 'netGS_%d.pth' % iter))
-            prune.random_unstructured(netGS.fc, name="weight", amount=0.5)
-            prune.random_unstructured(netGS.deconv1, name="weight", amount=0.5)
-            prune.random_unstructured(netGS.deconv2, name="weight", amount=0.5)
-            prune.random_unstructured(netGS.deconv3, name="weight", amount=0.5)
+            ##prune
+            if dataset == 'mnist':
+                prune.remove(netGS.fc, name="weight")
+                prune.remove(netGS.deconv1, name="weight")
+                prune.remove(netGS.deconv2, name="weight",)
+                prune.remove(netGS.deconv3, name="weight")
+
+            elif dataset == 'cifar_10':
+
+                prune.remove(netGS.fc, name="weight")
+                prune.remove(netGS.deconv1, name="weight")
+                prune.remove(netGS.deconv2, name="weight")
+                prune.remove(netGS.deconv3, name="weight")
+                prune.remove(netGS.deconv4, name="weight")
+            
+            ### save model
+            netGS.eval()
+            netD.eval()
+            torch.save(netGS.state_dict(), os.path.join(save_dir, 'netGS_%d.pth' % iters))
+            torch.save(netD.state_dict(), os.path.join(save_dir, 'netD_%d.pth' % iters))
+            netGS.train()
+            netD.train()
+
+            ##prune
+            if dataset == 'mnist':
+                prune.random_unstructured(netGS.fc, name="weight", amount=0.5)
+                prune.random_unstructured(netGS.deconv1, name="weight", amount=0.5)
+                prune.random_unstructured(netGS.deconv2, name="weight", amount=0.5)
+                prune.random_unstructured(netGS.deconv3, name="weight", amount=0.5)
+
+            elif dataset == 'cifar_10':
+
+                prune.random_unstructured(netGS.fc, name="weight", amount=0.5)
+                prune.random_unstructured(netGS.deconv1, name="weight", amount=0.5)
+                prune.random_unstructured(netGS.deconv2, name="weight", amount=0.5)
+                prune.random_unstructured(netGS.deconv3, name="weight", amount=0.5)
+                prune.random_unstructured(netGS.deconv4, name="weight", amount=0.5)
 
         del label, fake, noisev, noise, G, G_cost, D_cost
         torch.cuda.empty_cache()
 
-        if ((iter+1) % 500 == 0):
-            classify_training(netGS, dataset, iter+1)
+        #if ((iters+1) % 500 == 0):
+        #    classify_training(netGS, dataset, iters+1)
 
-    ### save model
-    prune.remove(netG.fc, name="weight")
-    prune.remove(netG.deconv1, name="weight")
-    prune.remove(netG.deconv2, name="weight")
-    prune.remove(netG.deconv3, name="weight")
-    torch.save(netG, os.path.join(save_dir, 'netG.pth'))
-    torch.save(netGS, os.path.join(save_dir, 'netGS.pth'))
 
 
 if __name__ == '__main__':
     args = parse_arguments()
     save_config(args)
     main(args)
-
-
 
 

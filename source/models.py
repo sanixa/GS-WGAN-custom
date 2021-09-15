@@ -242,6 +242,66 @@ class DiscriminatorDCGAN(nn.Module):
         gradient_penalty = ((gradients_norm - 1) ** 2).mean() * L_gp
         return gradient_penalty
 
+class DiscriminatorDCGAN_TS(nn.Module):
+    def __init__(self, model_dim=64, num_classes=10, if_SN=True):
+        super(DiscriminatorDCGAN_TS, self).__init__()
+
+        self.model_dim = model_dim
+        self.num_classes = num_classes
+
+        if if_SN:
+            self.conv1 = SpectralNorm(nn.Conv2d(1, model_dim, 5, stride=2, padding=2))
+            self.conv2 = SpectralNorm(nn.Conv2d(model_dim, model_dim * 2, 5, stride=2, padding=2))
+            self.conv3 = SpectralNorm(nn.Conv2d(model_dim * 2, model_dim * 4, 5, stride=2, padding=2))
+            self.linear = SpectralNorm(nn.Linear(4 * 4 * 4 * model_dim, 1))
+            self.linear_y = SpectralNorm(nn.Embedding(num_classes, 4 * 4 * 4 * model_dim))
+        else:
+            self.conv1 = nn.Conv2d(1, model_dim, 5, stride=2, padding=2)
+            self.conv2 = nn.Conv2d(model_dim, model_dim * 2, 5, stride=2, padding=2)
+            self.conv3 = nn.Conv2d(model_dim * 2, model_dim * 4, 5, stride=2, padding=2)
+            self.linear = nn.Linear(4 * 4 * 4 * model_dim, 1)
+            self.linear_y = nn.Embedding(num_classes, 4 * 4 * 4 * model_dim)
+        self.relu = nn.ReLU()
+
+    def forward(self, input, y):
+        input = input.view(-1, 1, IMG_W, IMG_H)
+        h = TemperedSigmoid()(self.conv1(input))
+        h = TemperedSigmoid()(self.conv2(h))
+        h = TemperedSigmoid()(self.conv3(h))
+        h = h.view(-1, 4 * 4 * 4 * self.model_dim)
+        out = self.linear(h)
+        out += torch.sum(self.linear_y(y) * h, dim=1, keepdim=True)
+        return out.view(-1)
+
+    def calc_gradient_penalty(self, real_data, fake_data, y, L_gp, device):
+        '''
+        compute gradient penalty term
+        :param real_data:
+        :param fake_data:
+        :param y:
+        :param L_gp:
+        :param device:
+        :return:
+        '''
+
+        batchsize = real_data.shape[0]
+        real_data = real_data.to(device)
+        fake_data = fake_data.to(device)
+        y = y.to(device)
+        alpha = torch.rand(batchsize, 1)
+        alpha = alpha.to(device)
+
+        interpolates = alpha * real_data + ((1 - alpha) * fake_data)
+        interpolates = interpolates.to(device)
+        interpolates = autograd.Variable(interpolates, requires_grad=True)
+        disc_interpolates = self.forward(interpolates, y)
+
+        gradients = autograd.grad(outputs=disc_interpolates, inputs=interpolates,
+                                  grad_outputs=torch.ones(disc_interpolates.size()).to(device),
+                                  create_graph=True, retain_graph=True, only_inputs=True)[0]
+        gradients_norm = gradients.norm(2, dim=1)
+        gradient_penalty = ((gradients_norm - 1) ** 2).mean() * L_gp
+        return gradient_penalty
 
 #@torchsnooper.snoop()
 class GeneratorDCGAN_cifar(nn.Module):
@@ -316,6 +376,87 @@ class GeneratorDCGAN_cifar(nn.Module):
         output = self.deconv3(output)
         output = self.BN_3(output)
         output = self.relu(output)
+        output = pixel_norm(output)
+
+        output = self.deconv4(output)
+        output = self.outact(output)
+
+        return output.view(-1, 32 * 32)
+
+#@torchsnooper.snoop()
+class GeneratorDCGAN_cifar_TS(nn.Module):
+    def __init__(self, z_dim=10, model_dim=64, num_classes=10, outact=nn.Tanh()):
+        super(GeneratorDCGAN_cifar, self).__init__()
+
+        self.cdist = nn.CosineSimilarity(dim = 1, eps= 1e-9)
+        self.grads = []
+        self.grad_dict = {}
+
+        self.model_dim = model_dim
+        self.z_dim = z_dim
+        self.num_classes = num_classes
+
+        fc = nn.Linear(z_dim + num_classes, z_dim * 1 * 1)
+        deconv1 = nn.ConvTranspose2d(z_dim, model_dim * 4, 4, 1, 0, bias=False)
+        deconv2 = nn.ConvTranspose2d(model_dim * 4, model_dim * 2, 4, 2, 1, bias=False)
+        deconv3 = nn.ConvTranspose2d(model_dim * 2, model_dim, 4, 2, 1, bias=False)
+        deconv4 = nn.ConvTranspose2d(model_dim, 1, 4, 2, 1, bias=False)
+
+        self.deconv1 = deconv1
+        self.deconv2 = deconv2
+        self.deconv3 = deconv3
+        self.deconv4 = deconv4
+        self.BN_1 = nn.BatchNorm2d(model_dim * 4)
+        self.BN_2 = nn.BatchNorm2d(model_dim * 2)
+        self.BN_3 = nn.BatchNorm2d(model_dim)
+        self.fc = fc
+        self.relu = nn.ReLU()
+        self.outact = outact
+        self.TS = TemperedSigmoid()
+
+        ''' reference by https://github.com/Ksuryateja/DCGAN-CIFAR10-pytorch/blob/master/gan_cifar.py
+        nn.ConvTranspose2d(z_dim, model_dim * 8, 4, 1, 0, bias=False),
+        nn.BatchNorm2d(model_dim * 8),
+        nn.ReLU(True),
+        # state size. (ngf*8) x 4 x 4
+        nn.ConvTranspose2d(model_dim * 8, model_dim * 4, 4, 2, 1, bias=False),
+        nn.BatchNorm2d(model_dim * 4),
+        nn.ReLU(True),
+        # state size. (ngf*4) x 8 x 8
+        nn.ConvTranspose2d(model_dim * 4, model_dim * 2, 4, 2, 1, bias=False),
+        nn.BatchNorm2d(model_dim * 2),
+        nn.ReLU(True),
+        # state size. (ngf*2) x 16 x 16
+        nn.ConvTranspose2d(model_dim * 2, model_dim, 4, 2, 1, bias=False),
+        nn.BatchNorm2d(model_dim),
+        nn.ReLU(True),
+        # state size. (ngf) x 32 x 32
+        nn.ConvTranspose2d(model_dim, nc, 4, 2, 1, bias=False),
+        nn.Tanh()
+        # state size. (nc) x 64 x 64
+        '''
+
+    def forward(self, z, y):
+        y_onehot = one_hot_embedding(y, self.num_classes)
+        z_in = torch.cat([z, y_onehot], dim=1)
+        output = self.fc(z_in)
+        output = output.view(-1, self.z_dim, 1, 1)
+        output =self.TS(output)
+        output = pixel_norm(output)
+
+        output = self.deconv1(output)
+        output = self.BN_1(output)
+        output = self.TS(output)
+        output = pixel_norm(output)
+
+        output = self.deconv2(output)
+        output = self.BN_2(output)
+        output = self.TS(output)
+        output = pixel_norm(output)
+
+        output = self.deconv3(output)
+        output = self.BN_3(output)
+        output = self.TS(output)
         output = pixel_norm(output)
 
         output = self.deconv4(output)
@@ -411,6 +552,93 @@ class DiscriminatorDCGAN_cifar(nn.Module):
         gradient_penalty = ((gradients_norm - 1) ** 2).mean() * L_gp
         return gradient_penalty
 
+#@torchsnooper.snoop()
+class DiscriminatorDCGAN_cifar_TS(nn.Module):
+    def __init__(self, model_dim=64, num_classes=10, if_SN=True):
+        super(DiscriminatorDCGAN_cifar_TS, self).__init__()
+
+        self.model_dim = model_dim
+        self.num_classes = num_classes
+
+        if if_SN:
+            self.conv1 = SpectralNorm(nn.Conv2d(1, model_dim, 4, 2, 1, bias=False))
+            self.conv2 = SpectralNorm(nn.Conv2d(model_dim, model_dim * 2, 4, 2, 1, bias=False))
+            self.conv3 = SpectralNorm(nn.Conv2d(model_dim * 2, model_dim * 4, 4, 2, 1, bias=False))
+            self.conv4 = SpectralNorm(nn.Conv2d(model_dim * 4, 1, 4, 1, 0, bias=False))
+            self.BN_1 = nn.BatchNorm2d(model_dim * 2)
+            self.BN_2 = nn.BatchNorm2d(model_dim * 4)
+            self.linear = SpectralNorm(nn.Linear(4 * 4 * 4 * model_dim, 1))
+            self.linear_y = SpectralNorm(nn.Embedding(num_classes, 4 * 4 * 4 * model_dim))
+        else:
+            self.conv1 = nn.Conv2d(1, model_dim, 5, stride=2, padding=2)
+            self.conv2 = nn.Conv2d(model_dim, model_dim * 2, 5, stride=2, padding=2)
+            self.conv3 = nn.Conv2d(model_dim * 2, model_dim * 4, 5, stride=2, padding=2)
+            self.linear = nn.Linear(4 * 4 * 4 * model_dim, 1)
+            self.linear_y = nn.Embedding(num_classes, 4 * 4 * 4 * model_dim)
+        self.LeakyReLU = nn.LeakyReLU(0.2, inplace=True)
+        self.Sigmoid = nn.Sigmoid()
+
+        ''' reference by https://github.com/Ksuryateja/DCGAN-CIFAR10-pytorch/blob/master/gan_cifar.py
+            # input is (nc) x 64 x 64
+            nn.Conv2d(nc, ndf, 4, 2, 1, bias=False),
+            nn.LeakyReLU(0.2, inplace=True),
+            # state size. (ndf) x 32 x 32
+            nn.Conv2d(ndf, ndf * 2, 4, 2, 1, bias=False),
+            nn.BatchNorm2d(ndf * 2),
+            nn.LeakyReLU(0.2, inplace=True),
+            # state size. (ndf*2) x 16 x 16
+            nn.Conv2d(ndf * 2, ndf * 4, 4, 2, 1, bias=False),
+            nn.BatchNorm2d(ndf * 4),
+            nn.LeakyReLU(0.2, inplace=True),
+            # state size. (ndf*4) x 8 x 8
+            nn.Conv2d(ndf * 4, ndf * 8, 4, 2, 1, bias=False),
+            nn.BatchNorm2d(ndf * 8),
+            nn.LeakyReLU(0.2, inplace=True),
+            # state size. (ndf*8) x 4 x 4
+            nn.Conv2d(ndf * 8, 1, 4, 1, 0, bias=False),
+            nn.Sigmoid()
+        '''
+
+    def forward(self, input, y):
+        input = input.view(-1, 1, 32, 32)
+        h = TemperedSigmoid()(self.conv1(input))
+        h = TemperedSigmoid()(self.BN_1(self.conv2(h)))
+        h = TemperedSigmoid()(self.BN_2(self.conv3(h)))
+        #h = self.Sigmoid(self.conv4(h))
+        h = h.view(-1, 4 * 4 * 4 * self.model_dim)
+        out = self.linear(h)
+        out += torch.sum(self.linear_y(y) * h, dim=1, keepdim=True)
+        return out.view(-1, 1).squeeze(1)
+
+    def calc_gradient_penalty(self, real_data, fake_data, y, L_gp, device):
+        '''
+        compute gradient penalty term
+        :param real_data:
+        :param fake_data:
+        :param y:
+        :param L_gp:
+        :param device:
+        :return:
+        '''
+
+        batchsize = real_data.shape[0]
+        real_data = real_data.to(device)
+        fake_data = fake_data.to(device)
+        y = y.to(device)
+        alpha = torch.rand(batchsize, 1)
+        alpha = alpha.to(device)
+
+        interpolates = alpha * real_data + ((1 - alpha) * fake_data)
+        interpolates = interpolates.to(device)
+        interpolates = autograd.Variable(interpolates, requires_grad=True)
+        disc_interpolates = self.forward(interpolates, y)
+
+        gradients = autograd.grad(outputs=disc_interpolates, inputs=interpolates,
+                                  grad_outputs=torch.ones(disc_interpolates.size()).to(device),
+                                  create_graph=True, retain_graph=True, only_inputs=True)[0]
+        gradients_norm = gradients.norm(2, dim=1)
+        gradient_penalty = ((gradients_norm - 1) ** 2).mean() * L_gp
+        return gradient_penalty
 
 
 class ResNetResidualBlock(nn.Module):
@@ -586,3 +814,4 @@ class Generator(nn.Module):
         labels, linear = self.label_emb(labels), self.linear(z)
         data = torch.cat((linear, labels), axis=1)
         return self.model(data)
+

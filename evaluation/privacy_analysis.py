@@ -25,7 +25,7 @@ def main():
     batch_size = 64
     prob = 1. / 1000  # subsampling rate
     n_steps = 20000  # training iterations
-    sigma = 0.409#config['noise_multiplier']  # noise scale
+    sigma = 0.1#config['noise_multiplier']  # noise scale
     func = lambda x: rdp_bank.RDP_gaussian({'sigma': sigma}, x)
 
     acct = rdp_acct.anaRDPacct()
