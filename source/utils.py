@@ -6,6 +6,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
+from torch.utils.data.dataset import Dataset
+from torchvision import datasets, transforms
 
 def mkdir(dir):
     if not os.path.exists(dir):
