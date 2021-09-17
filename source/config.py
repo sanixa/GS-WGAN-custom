@@ -38,6 +38,7 @@ def parse_arguments():
                         help='output folder name; will be automatically generated if not specified')
     parser.add_argument('--dp', '-dp', type=int, default=1, help='usage of DP')
     parser.add_argument('--collect_iter', '-collect_iter', type=int, default=1000, help='collection period')
+    parser.add_argument('--update-train-dataset', '-update', type=int, default=0, help='update training dataset')
 
     parser.add_argument('--checkpoint', type=str)
     parser.add_argument('--save_dir', type=str)

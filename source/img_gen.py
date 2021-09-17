@@ -166,6 +166,7 @@ def main(args):
 	#netG = torch.load(load_dir)
 	netG.load_state_dict(torch.load(load_dir))
 	netG = netG.to(device0)
+    netG.eval()
 
 	if latent_type == 'normal':
 		#fix_noise = torch.randn(10, z_dim)
@@ -228,5 +229,6 @@ def main(args):
 if __name__ == '__main__':
 	args = parse_arguments()
 	main(args)
+
 
 

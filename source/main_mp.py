@@ -400,6 +400,15 @@ def main(args):
     else:
         raise NotImplementedError
 
+    ###fix sub-training set (fix to 10000 training samples)
+    if args.update_train_dataset:
+        indices_full = np.arange(len(trainset))
+        np.random.shuffle(indices_full)
+        indices_10000 = indices_full[:10000]
+        np.savetxt('index_10000.txt', indices_10000, fmt='%i')
+    indices = np.loadtxt('index_10000.txt', dtype=np.int_)
+    trainset = torch.utils.data.Subset(trainset, indices)
+
     print('creat indices file')
     indices_full = np.arange(len(trainset))
     np.random.shuffle(indices_full)
@@ -533,7 +542,7 @@ def main(args):
             elif dataset == 'cifar_10':
                 generate_image_cifar10(iters, netGS, fix_noise, save_dir, device0)
 
-        if iters % args.save_step == 0:
+        if iters in [1000, 5000, 10000, 20000]:
             ### save model
             ##prune
             if dataset == 'mnist':
@@ -551,12 +560,9 @@ def main(args):
                 prune.remove(netGS.deconv4, name="weight")
             
             ### save model
-            netGS.eval()
-            netD.eval()
             torch.save(netGS.state_dict(), os.path.join(save_dir, 'netGS_%d.pth' % iters))
             torch.save(netD.state_dict(), os.path.join(save_dir, 'netD_%d.pth' % iters))
-            netGS.train()
-            netD.train()
+
 
             ##prune
             if dataset == 'mnist':
@@ -585,5 +591,6 @@ if __name__ == '__main__':
     args = parse_arguments()
     save_config(args)
     main(args)
+
 
 

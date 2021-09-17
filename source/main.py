@@ -15,6 +15,7 @@ from config import *
 from models import *
 from utils import *
 
+
 from ops import exp_mov_avg
 #from torchsummary import summary
 from torchinfo import summary
@@ -141,116 +142,6 @@ class Classifier(nn.Module):
 FloatTensor = torch.cuda.FloatTensor
 LongTensor = torch.cuda.LongTensor
 
-'''
-
-def classify_training(netGS, dataset, iter):
-    ### Data loaders
-    if dataset == 'mnist' or dataset == 'fashionmnist':
-        transform_train = transforms.Compose([
-        transforms.CenterCrop((28, 28)),
-        transforms.ToTensor(),
-        #transforms.Grayscale(),
-        ])
-    elif dataset == 'cifar_100' or dataset == 'cifar_10':
-        transform_train = transforms.Compose([
-        transforms.CenterCrop((28, 28)),
-        transforms.Grayscale(),
-        transforms.ToTensor(),
-        ])
-
-    if dataset == 'mnist':
-        dataloader = datasets.MNIST
-        test_set = dataloader(root=os.path.join(DATA_ROOT, 'MNIST'), train=False, download=True,
-                              transform=transform_train)
-        IMG_DIM = 784
-        NUM_CLASSES = 10
-    elif dataset == 'fashionmnist':
-        dataloader = datasets.FashionMNIST
-        test_set = dataloader(root=os.path.join(DATA_ROOT, 'FashionMNIST'), train=False, download=True,
-                              transform=transform_train)
-    elif dataset == 'cifar_100':
-        dataloader = datasets.CIFAR100
-        test_set = dataloader(root=os.path.join(DATA_ROOT, 'CIFAR100'), train=False, download=True,
-                              transform=transform_train)
-        IMG_DIM = 3072
-        NUM_CLASSES = 100
-    elif dataset == 'cifar_10':
-        IMG_DIM = 784
-        NUM_CLASSES = 10
-        dataloader = datasets.CIFAR10
-        test_set = dataloader(root=os.path.join(DATA_ROOT, 'CIFAR10'), train=False, download=True,
-                              transform=transform_train)
-    else:
-        raise NotImplementedError
-    test_loader = DataLoader(test_set, batch_size=1000, shuffle=False)
-
-    netGS.eval()
-    for i in tqdm(range(25)):
-        gen_labels = Variable(LongTensor(np.random.randint(0, 10, 2000)))
-        noise = Variable(FloatTensor(np.random.normal(0, 1, (2000, args.z_dim))))
-        synthesized = netGS(noise, gen_labels)
-
-        if (i == 0):
-            new_data = synthesized.cpu().detach()
-            new_label = gen_labels.cpu().detach()
-        else:
-            new_data = torch.cat((new_data, synthesized.cpu().detach()), 0)
-            new_label = torch.cat((new_label, gen_labels.cpu().detach()), 0)
-
-    new_data = torch.clamp(new_data, min=0., max=1.)
-
-    C = Classifier().cuda()
-    C.train()
-    opt_C = torch.optim.Adam(C.parameters(), lr=1e-3)
-    criterion = nn.CrossEntropyLoss()
-
-    gen_set = TensorDataset(new_data.cuda(), new_label.cuda())
-    gen_loader = DataLoader(gen_set, batch_size=32, shuffle=True)
-
-    prg_bar = tqdm(range(50))
-    for epoch in prg_bar:
-        train_acc = 0.0
-        train_loss = 0.0
-        for i, (data, label) in enumerate(gen_loader):
-            pred = C(data)
-            loss = criterion(pred, label)
-
-            opt_C.zero_grad()
-            loss.backward()
-            opt_C.step()
-
-            train_acc += np.sum(np.argmax(pred.cpu().data.numpy(), axis=1) == label.cpu().numpy())
-            train_loss += loss.item()
-        
-        prg_bar.set_description(f'acc: {train_acc/gen_set.__len__():.3f}  loss: {train_loss/gen_set.__len__():.4f}')
-
-    test_acc = 0.0
-    C.eval()
-    for i, (data, label) in enumerate(test_loader):
-        data = Variable(data.type(FloatTensor))
-        label = Variable(label.type(LongTensor))
-        pred = C(data)
-        test_acc += np.sum(np.argmax(pred.cpu().data.numpy(), axis=1) == label.cpu().numpy())
-
-    test_acc /= test_set.__len__()
-    test_acc *= 100
-    print(f'the final result of test accuracy = {test_acc/100:.3f}')
-
-    for i in range(9):
-        if (test_acc > acc_milestone[i] and acc_passed[i] == False):
-            acc_passed[i] = True
-            torch.save(netGS, os.path.join(args.checkpoint, f'diff_acc/{acc_milestone[i]}.pth'))
-            with open(os.path.join(args.checkpoint, f'diff_acc/result.txt'), 'a') as f:
-                f.write(f"thres:{acc_milestone[i]}% iter:{iter}, acc:{test_acc:.1f}%\n")
-
-    if (iter in iter_milestone):
-        torch.save(netGS, os.path.join(args.checkpoint, f'diff_iter/{iter}.pth'))
-        with open(os.path.join(args.checkpoint, f'diff_iter/result.txt'), 'a') as f:
-                f.write(f"iter:{iter}, acc:{test_acc:.1f}%\n")
-
-    del C, new_data, new_label, gen_set, gen_loader
-    torch.cuda.empty_cache()
-'''
 
 ##########################################################
 # ## main
@@ -335,13 +226,12 @@ def main(args):
     optimizerG = optim.Adam(netG.parameters(), lr=1e-4, betas=(0.5, 0.99))
 
     ### Data loaders
-    if dataset == 'mnist' or dataset == 'fashionmnist':
+    if dataset == 'mnist':
         transform_train = transforms.Compose([
         transforms.CenterCrop((28, 28)),
         transforms.ToTensor(),
-        #transforms.Grayscale(),
         ])
-    elif dataset == 'cifar_100' or dataset == 'cifar_10':
+    elif  dataset == 'cifar_10':
         transform_train = transforms.Compose([
         transforms.Grayscale(),
         transforms.ToTensor(),
@@ -353,16 +243,6 @@ def main(args):
                               transform=transform_train)
         IMG_DIM = 784
         NUM_CLASSES = 10
-    elif dataset == 'fashionmnist':
-        dataloader = datasets.FashionMNIST
-        trainset = dataloader(root=os.path.join(DATA_ROOT, 'FashionMNIST'), train=True, download=True,
-                              transform=transform_train)
-    elif dataset == 'cifar_100':
-        dataloader = datasets.CIFAR100
-        trainset = dataloader(root=os.path.join(DATA_ROOT, 'CIFAR100'), train=True, download=True,
-                              transform=transform_train)
-        IMG_DIM = 3072
-        NUM_CLASSES = 100
     elif dataset == 'cifar_10':
         IMG_DIM = 1024
         NUM_CLASSES = 10
@@ -371,6 +251,16 @@ def main(args):
                               transform=transform_train)
     else:
         raise NotImplementedError
+    
+    ###fix sub-training set (fix to 10000 training samples)
+    if args.update_train_dataset:
+        indices_full = np.arange(len(trainset))
+        np.random.shuffle(indices_full)
+        indices_10000 = indices_full[:10000]
+        np.savetxt('index_10000.txt', indices_10000, fmt='%i')
+    indices = np.loadtxt('index_10000.txt', dtype=np.int_)
+    trainset = torch.utils.data.Subset(trainset, indices)
+
 
     print('creat indices file')
     indices_full = np.arange(len(trainset))
@@ -505,10 +395,11 @@ def main(args):
             elif dataset == 'cifar_10':
                 generate_image_cifar10(iters, netGS, fix_noise, save_dir, device0)
 
-        if iters % args.save_step == 0:
+        if iters in [1000, 5000, 10000, 20000]:
             ### save model
             torch.save(netGS.state_dict(), os.path.join(save_dir, 'netGS_%d.pth' % iters))
             torch.save(netD.state_dict(), os.path.join(save_dir, 'netD_%d.pth' % iters))
+
 
         del label, fake, noisev, noise, G, G_cost, D_cost
         torch.cuda.empty_cache()
@@ -516,14 +407,13 @@ def main(args):
         #if ((iters+1) % 500 == 0):
         #    classify_training(netGS, dataset, iters+1)
 
-    ### save model
-    torch.save(netG, os.path.join(save_dir, 'netG.pth'))
-    torch.save(netGS, os.path.join(save_dir, 'netGS.pth'))
+
 
 
 if __name__ == '__main__':
     args = parse_arguments()
     save_config(args)
     main(args)
+
 
 
