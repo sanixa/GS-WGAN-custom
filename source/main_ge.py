@@ -252,8 +252,7 @@ def collect(args, collect_iter, netG, netD, input_pipelines, devices, optimizerG
 
         optimizerG.step()
 
-        del label, fake, noisev, noise, G, G_cost, D_cost
-        torch.cuda.empty_cache()
+
         ############################
         ### Results visualization
         ############################
@@ -261,7 +260,9 @@ def collect(args, collect_iter, netG, netD, input_pipelines, devices, optimizerG
                                                                 D_cost.cpu().data,
                                                                 Wasserstein_D.cpu().data
                                                                 ))
-
+        del label, fake, noisev, noise, G, G_cost, D_cost
+        torch.cuda.empty_cache()
+        
         if torch.rand(1) < 0.1:
             netG.grad_dict[G_grad_dict_num] = [p.grad.clone() for p in netG.parameters()]
             g_vec = torch.cat([g.view(-1) for g in netG.grad_dict[G_grad_dict_num]])

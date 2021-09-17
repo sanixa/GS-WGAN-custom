@@ -386,7 +386,7 @@ class GeneratorDCGAN_cifar(nn.Module):
 #@torchsnooper.snoop()
 class GeneratorDCGAN_cifar_TS(nn.Module):
     def __init__(self, z_dim=10, model_dim=64, num_classes=10, outact=nn.Tanh()):
-        super(GeneratorDCGAN_cifar, self).__init__()
+        super(GeneratorDCGAN_cifar_TS, self).__init__()
 
         self.cdist = nn.CosineSimilarity(dim = 1, eps= 1e-9)
         self.grads = []
