@@ -254,11 +254,14 @@ def main(args):
     
     ###fix sub-training set (fix to 10000 training samples)
     if args.update_train_dataset:
-        indices_full = np.arange(len(trainset))
+        if dataset == 'mnist':
+            indices_full = np.arange(60000)
+        elif  dataset == 'cifar_10':
+            indices_full = np.arange(50000)
         np.random.shuffle(indices_full)
-        indices_10000 = indices_full[:10000]
-        np.savetxt('index_10000.txt', indices_10000, fmt='%i')
-    indices = np.loadtxt('index_10000.txt', dtype=np.int_)
+        indices_slice = indices_full[:600]
+        np.savetxt('index_600.txt', indices_slice, fmt='%i')
+    indices = np.loadtxt('index_600.txt', dtype=np.int_)
     trainset = torch.utils.data.Subset(trainset, indices)
 
 
@@ -395,7 +398,7 @@ def main(args):
             elif dataset == 'cifar_10':
                 generate_image_cifar10(iters, netGS, fix_noise, save_dir, device0)
 
-        if iters in [1000, 5000, 10000, 20000]:
+        if iters in [2000, 4000, 6000, 8000]:
             ### save model
             torch.save(netGS.state_dict(), os.path.join(save_dir, 'netGS_%d.pth' % iters))
             torch.save(netD.state_dict(), os.path.join(save_dir, 'netD_%d.pth' % iters))
