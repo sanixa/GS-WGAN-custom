@@ -1,3 +1,6 @@
+# %matplotlib inline
+
+# +
 import os, sys
 import numpy as np
 import random
@@ -28,9 +31,7 @@ SENSITIVITY = 2.
 DATA_ROOT = './../data'
 
 
-##########################################################
-# ## hook functions
-# #########################################################
+# +
 def master_hook_adder(module, grad_input, grad_output):
     '''
     global hook
@@ -141,16 +142,15 @@ LongTensor = torch.cuda.LongTensor
 
 def weights_init(m):
     classname = m.__class__.__name__
-    if classname.find('Conv') != -1:
+    if classname.find('Conv2d') != -1:
         m.weight.data.normal_(0.0, 0.02)
     elif classname.find('BatchNorm') != -1:
         m.weight.data.normal_(1.0, 0.02)
         m.bias.data.fill_(0)
 
 
-##########################################################
-# ## main
-# #########################################################
+# -
+
 def main(args):
     ### config
     global noise_multiplier
@@ -200,9 +200,9 @@ def main(args):
     if dataset == 'mnist':
         netG = GeneratorDCGAN(z_dim=z_dim, model_dim=model_dim, num_classes=10)
     elif dataset == 'cifar_10':
-        netG = GeneratorDCGAN_cifar(z_dim=z_dim, model_dim=model_dim, num_classes=10)
+        netG = GeneratorDCGAN_cifar_ch3(z_dim=z_dim, model_dim=model_dim, num_classes=10)
         netG.apply(weights_init)
-        #netG.load_state_dict(torch.load('../results/cifar_10/main/d500_i40000_10/netGS_40000.pth'))
+        #netG.load_state_dict(torch.load('../results/cifar_10/main/d50000_i40000_100_ch3/netGS_40000.pth'))
 
     netGS = copy.deepcopy(netG)
     netD_list = []
@@ -210,9 +210,9 @@ def main(args):
         if dataset == 'mnist':
             netD = DiscriminatorDCGAN()
         elif dataset == 'cifar_10':
-            netD = DiscriminatorDCGAN_cifar()
-            netD.apply(weights_init)
-            #netD.load_state_dict(torch.load('../results/cifar_10/main/d500_i40000_10/netD_40000.pth'))
+            netD = DiscriminatorDCGAN_cifar_ch3()
+            #netD.apply(weights_init)
+            #netD.load_state_dict(torch.load('../results/cifar_10/main/d50000_i40000_100_ch3/netD_40000.pth'))
         netD_list.append(netD)
 
     ### Load pre-trained discriminators
@@ -245,8 +245,8 @@ def main(args):
         ])
     elif  dataset == 'cifar_10':
         transform_train = transforms.Compose([
-        transforms.Grayscale(),
         transforms.ToTensor(),
+        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
         ])
 
     if dataset == 'mnist':
@@ -256,7 +256,7 @@ def main(args):
         IMG_DIM = 784
         NUM_CLASSES = 10
     elif dataset == 'cifar_10':
-        IMG_DIM = 1024
+        IMG_DIM = 3072
         NUM_CLASSES = 10
         dataloader = datasets.CIFAR10
         trainset = dataloader(root=os.path.join(DATA_ROOT, 'CIFAR10'), train=True, download=True,
@@ -409,12 +409,12 @@ def main(args):
             elif dataset == 'cifar_100':
                 generate_image_cifar100(iters, netGS, fix_noise, save_dir, device0)
             elif dataset == 'cifar_10':
-                generate_image_cifar10(str(iters+40000), netGS, fix_noise, save_dir, device0)
+                generate_image_cifar10_ch3(str(iters+0), netGS, fix_noise, save_dir, device0)
 
         if iters % args.save_step==0:
             ### save model
-            torch.save(netGS.state_dict(), os.path.join(save_dir, 'netGS_%s.pth' % str(iters+40000)))
-            torch.save(netD.state_dict(), os.path.join(save_dir, 'netD_%s.pth' % str(iters+40000)))
+            torch.save(netGS.state_dict(), os.path.join(save_dir, 'netGS_%s.pth' % str(iters+0)))
+            torch.save(netD.state_dict(), os.path.join(save_dir, 'netD_%s.pth' % str(iters+0)))
 
 
         del label, fake, noisev, noise, G, G_cost, D_cost
@@ -430,6 +430,5 @@ if __name__ == '__main__':
     args = parse_arguments()
     save_config(args)
     main(args)
-
 
 
