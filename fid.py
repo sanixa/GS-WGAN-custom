@@ -201,7 +201,7 @@ save_dir = 'results/generated/'
 
 def save_cifar():
     
-    save_dir = 'results/generated/raw_cifar/'
+    save_dir = 'results/generated/raw_cifar/train'
     if not os.path.isdir(save_dir):
         os.makedirs(save_dir)
     
@@ -229,10 +229,36 @@ def save_cifar():
         temp = plt.figure(figsize=(1, 1))
         plt.imshow(train_data[i], cmap='gray')
         plt.axis('off')
-        plt.savefig(os.path.join(save_dir, 'samples_{}.png'.format(i)), dpi=150, format='png')
+        plt.savefig(os.path.join(save_dir, 'samples_{}.png'.format(i)), dpi=32, format='png')
         del temp
 
+    save_dir = 'results/generated/raw_cifar/test'
+    if not os.path.isdir(save_dir):
+        os.makedirs(save_dir)
+    
+    transform_test = transforms.Compose([
+    transforms.Grayscale(),
+    transforms.ToTensor(),
+    ])
 
+    IMG_DIM = 1024
+    NUM_CLASSES = 10
+    dataloader = datasets.CIFAR10
+    testset = dataloader(root=os.path.join('data', 'CIFAR10'), train=False, download=True,
+                          transform=transform_test)
+    
+    test_loader = torch.utils.data.DataLoader(testset, batch_size=10000, shuffle=True)
+    test_data, test_target = next(iter(test_loader))
+    
+    test_data = test_data.cpu().data.numpy()
+    test_data = np.reshape(test_data, [10000, 32, 32])
+    
+    for i in range(10000):
+        temp = plt.figure(figsize=(1, 1))
+        plt.imshow(test_data[i], cmap='gray')
+        plt.axis('off')
+        plt.savefig(os.path.join(save_dir, 'samples_{}.png'.format(i)), dpi=32, format='png')
+        del temp
 
 
 # +
@@ -308,181 +334,16 @@ def generate_unit_image_cifar_ch3(num_classes=10,
     del label, noise, sample
     torch.cuda.empty_cache()
     
-    ######################################################################################
-    save_dir = 'results/generated/d500_i80000_10_ch3/20000/'
-    if not os.path.isdir(save_dir):
-        os.makedirs(save_dir)
-    
-    p = 0.5
-    bernoulli = torch.distributions.Bernoulli(torch.tensor([p]))
-    figsize = (1, 1)
-    
-    netG = GeneratorDCGAN_cifar_ch3(z_dim=100, model_dim=64, num_classes=10)
-    netG.load_state_dict(torch.load('results/cifar_10/main/d500_i80000_10_ch3/netGS_20000.pth'))
 
-    sample_list = []
-    for class_id in range(num_classes):
-        noise = bernoulli.sample((1000, 100)).view(1000, 100)
-        label = torch.full((1000,), class_id, dtype=torch.long).cuda()
-        sample = netG(noise, label)
-        sample = sample.view(1000, 3, img_w, img_h)
-        sample = sample.cpu().data.numpy()
-        sample_list.append(sample)
-    samples = np.transpose(np.array(sample_list), [1, 0, 3, 4, 2])
-    samples = np.reshape(samples, [10000, img_w, img_h, 3])
-    
-    samples = np.clip(samples, 0, 1)
-    for i in range(10000):
-        temp = plt.figure(figsize=figsize)
-        plt.imshow(samples[i], cmap='gray')
-        plt.axis('off')
-        plt.savefig(os.path.join(save_dir, 'samples_{}.png'.format(i)), dpi=150, format='png')
-        del temp
-        
-    del label, noise, sample
-    torch.cuda.empty_cache()
-    
-    ######################################################################################
-    save_dir = 'results/generated/d500_i80000_10_ch3/30000/'
-    if not os.path.isdir(save_dir):
-        os.makedirs(save_dir)
-    
-    p = 0.5
-    bernoulli = torch.distributions.Bernoulli(torch.tensor([p]))
-    figsize = (1, 1)
-    
-    netG = GeneratorDCGAN_cifar_ch3(z_dim=100, model_dim=64, num_classes=10)
-    netG.load_state_dict(torch.load('results/cifar_10/main/d500_i80000_10_ch3/netGS_30000.pth'))
-
-    sample_list = []
-    for class_id in range(num_classes):
-        noise = bernoulli.sample((1000, 100)).view(1000, 100)
-        label = torch.full((1000,), class_id, dtype=torch.long).cuda()
-        sample = netG(noise, label)
-        sample = sample.view(1000, 3, img_w, img_h)
-        sample = sample.cpu().data.numpy()
-        sample_list.append(sample)
-    samples = np.transpose(np.array(sample_list), [1, 0, 3, 4, 2])
-    samples = np.reshape(samples, [10000, img_w, img_h, 3])
-    
-    samples = np.clip(samples, 0, 1)
-    for i in range(10000):
-        temp = plt.figure(figsize=figsize)
-        plt.imshow(samples[i], cmap='gray')
-        plt.axis('off')
-        plt.savefig(os.path.join(save_dir, 'samples_{}.png'.format(i)), dpi=150, format='png')
-        del temp
-        
-    del label, noise, sample
-    torch.cuda.empty_cache()
-    
-    ######################################################################################
-    save_dir = 'results/generated/d500_i80000_10_ch3/40000/'
-    if not os.path.isdir(save_dir):
-        os.makedirs(save_dir)
-    
-    p = 0.5
-    bernoulli = torch.distributions.Bernoulli(torch.tensor([p]))
-    figsize = (1, 1)
-    
-    netG = GeneratorDCGAN_cifar_ch3(z_dim=100, model_dim=64, num_classes=10)
-    netG.load_state_dict(torch.load('results/cifar_10/main/d500_i80000_10_ch3/netGS_40000.pth'))
-
-    sample_list = []
-    for class_id in range(num_classes):
-        noise = bernoulli.sample((1000, 100)).view(1000, 100)
-        label = torch.full((1000,), class_id, dtype=torch.long).cuda()
-        sample = netG(noise, label)
-        sample = sample.view(1000, 3, img_w, img_h)
-        sample = sample.cpu().data.numpy()
-        sample_list.append(sample)
-    samples = np.transpose(np.array(sample_list), [1, 0, 3, 4, 2])
-    samples = np.reshape(samples, [10000, img_w, img_h, 3])
-    
-    samples = np.clip(samples, 0, 1)
-    for i in range(10000):
-        temp = plt.figure(figsize=figsize)
-        plt.imshow(samples[i], cmap='gray')
-        plt.axis('off')
-        plt.savefig(os.path.join(save_dir, 'samples_{}.png'.format(i)), dpi=150, format='png')
-        del temp
-        
-    del label, noise, sample
-    torch.cuda.empty_cache()
-    
-    ######################################################################################
-    save_dir = 'results/generated/d500_i80000_10_ch3/60000/'
-    if not os.path.isdir(save_dir):
-        os.makedirs(save_dir)
-    
-    p = 0.5
-    bernoulli = torch.distributions.Bernoulli(torch.tensor([p]))
-    figsize = (1, 1)
-    
-    netG = GeneratorDCGAN_cifar_ch3(z_dim=100, model_dim=64, num_classes=10)
-    netG.load_state_dict(torch.load('results/cifar_10/main/d500_i80000_10_ch3/netGS_60000.pth'))
-
-    sample_list = []
-    for class_id in range(num_classes):
-        noise = bernoulli.sample((1000, 100)).view(1000, 100)
-        label = torch.full((1000,), class_id, dtype=torch.long).cuda()
-        sample = netG(noise, label)
-        sample = sample.view(1000, 3, img_w, img_h)
-        sample = sample.cpu().data.numpy()
-        sample_list.append(sample)
-    samples = np.transpose(np.array(sample_list), [1, 0, 3, 4, 2])
-    samples = np.reshape(samples, [10000, img_w, img_h, 3])
-    
-    samples = np.clip(samples, 0, 1)
-    for i in range(10000):
-        temp = plt.figure(figsize=figsize)
-        plt.imshow(samples[i], cmap='gray')
-        plt.axis('off')
-        plt.savefig(os.path.join(save_dir, 'samples_{}.png'.format(i)), dpi=150, format='png')
-        del temp
-        
-    del label, noise, sample
-    torch.cuda.empty_cache()
-    
-    ######################################################################################
-    save_dir = 'results/generated/d500_i80000_10_ch3/80000/'
-    if not os.path.isdir(save_dir):
-        os.makedirs(save_dir)
-    
-    p = 0.5
-    bernoulli = torch.distributions.Bernoulli(torch.tensor([p]))
-    figsize = (1, 1)
-    
-    netG = GeneratorDCGAN_cifar_ch3(z_dim=100, model_dim=64, num_classes=10)
-    netG.load_state_dict(torch.load('results/cifar_10/main/d500_i80000_10_ch3/netGS_80000.pth'))
-
-    sample_list = []
-    for class_id in range(num_classes):
-        noise = bernoulli.sample((1000, 100)).view(1000, 100)
-        label = torch.full((1000,), class_id, dtype=torch.long).cuda()
-        sample = netG(noise, label)
-        sample = sample.view(1000, 3, img_w, img_h)
-        sample = sample.cpu().data.numpy()
-        sample_list.append(sample)
-    samples = np.transpose(np.array(sample_list), [1, 0, 3, 4, 2])
-    samples = np.reshape(samples, [10000, img_w, img_h, 3])
-    
-    samples = np.clip(samples, 0, 1)
-    for i in range(10000):
-        temp = plt.figure(figsize=figsize)
-        plt.imshow(samples[i], cmap='gray')
-        plt.axis('off')
-        plt.savefig(os.path.join(save_dir, 'samples_{}.png'.format(i)), dpi=150, format='png')
-        del temp
-        
-    del label, noise, sample
-    torch.cuda.empty_cache()
 
 
 def main():
-    #save_cifar()
-    generate_unit_image_cifar_ch3()
+    save_cifar()
+    #generate_unit_image_cifar_ch3()
 
 
 if __name__ == '__main__':
     main()
+
+
+

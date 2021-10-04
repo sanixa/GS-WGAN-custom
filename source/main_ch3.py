@@ -24,8 +24,8 @@ from ops import exp_mov_avg
 from torchinfo import summary
 from tqdm import tqdm
 
-IMG_DIM = 768
-NUM_CLASSES = 100
+IMG_DIM = -1
+NUM_CLASSES = -1
 CLIP_BOUND = 1.
 SENSITIVITY = 2.
 DATA_ROOT = './../data'
@@ -116,26 +116,6 @@ def dp_conv_hook(module, grad_input, grad_output):
         grad_input_new.append(grad_input[i+1])
     return tuple(grad_input_new)
 
-class Flatten(nn.Module):
-    def forward(self, input):
-        return input.view(input.size()[0], -1)
-
-class Classifier(nn.Module):
-    def __init__(self):
-        super(Classifier, self).__init__()
-
-        #input [1, 28, 28]
-        self.model = nn.Sequential(
-            Flatten(),
-
-            nn.Linear(784, 128),
-            nn.ReLU(),
-            nn.Dropout(0.5),
-            nn.Linear(128, 10),
-        )
-
-    def forward(self, input):
-        return self.model(input)
 
 FloatTensor = torch.cuda.FloatTensor
 LongTensor = torch.cuda.LongTensor
@@ -158,6 +138,8 @@ def main(args):
     num_discriminators = args.num_discriminators
     noise_multiplier = args.noise_multiplier
     z_dim = args.z_dim
+    if dataset == 'celeba':
+        z_dim = 100
     model_dim = args.model_dim
     batchsize = args.batchsize
     L_gp = args.L_gp
@@ -202,7 +184,17 @@ def main(args):
     elif dataset == 'cifar_10':
         netG = GeneratorDCGAN_cifar_ch3(z_dim=z_dim, model_dim=model_dim, num_classes=10)
         netG.apply(weights_init)
-        #netG.load_state_dict(torch.load('../results/cifar_10/main/d50000_i40000_100_ch3/netGS_40000.pth'))
+    elif dataset == 'celeba':
+        ngpu = 1
+        netG = Generator(ngpu)
+
+        # Handle multi-gpu if desired
+        if (device.type == 'cuda') and (ngpu > 1):
+            netG = nn.DataParallel(netG, list(range(ngpu)))
+
+        # Apply the weights_init function to randomly initialize all weights
+        #  to mean=0, stdev=0.02.
+        netG.apply(weights_init)
 
     netGS = copy.deepcopy(netG)
     netD_list = []
@@ -212,7 +204,17 @@ def main(args):
         elif dataset == 'cifar_10':
             netD = DiscriminatorDCGAN_cifar_ch3()
             #netD.apply(weights_init)
-            #netD.load_state_dict(torch.load('../results/cifar_10/main/d50000_i40000_100_ch3/netD_40000.pth'))
+        elif dataset == 'celeba':
+            ngpu = 1
+            netD = Discriminator_celeba(ngpu)
+
+            # Handle multi-gpu if desired
+            if (device.type == 'cuda') and (ngpu > 1):
+                netD = nn.DataParallel(netD, list(range(ngpu)))
+
+            # Apply the weights_init function to randomly initialize all weights
+            #  to mean=0, stdev=0.2.
+            netD.apply(weights_init)
         netD_list.append(netD)
 
     ### Load pre-trained discriminators
@@ -243,24 +245,36 @@ def main(args):
         transforms.CenterCrop((28, 28)),
         transforms.ToTensor(),
         ])
-    elif  dataset == 'cifar_10':
+    elif dataset == 'cifar_10':
         transform_train = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+        ])
+    elif dataset == 'celeba':
+        transform_train = transforms.Compose([
+        transforms.Resize(64),
+        transforms.CenterCrop(64),
         transforms.ToTensor(),
         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
         ])
 
     if dataset == 'mnist':
+        IMG_DIM = 784
+        NUM_CLASSES = 10
         dataloader = datasets.MNIST
         trainset = dataloader(root=os.path.join(DATA_ROOT, 'MNIST'), train=True, download=True,
                               transform=transform_train)
-        IMG_DIM = 784
-        NUM_CLASSES = 10
     elif dataset == 'cifar_10':
         IMG_DIM = 3072
         NUM_CLASSES = 10
         dataloader = datasets.CIFAR10
         trainset = dataloader(root=os.path.join(DATA_ROOT, 'CIFAR10'), train=True, download=True,
                               transform=transform_train)
+    elif dataset == 'celeba':
+        IMG_DIM = 64*64*3
+        NUM_CLASSES = 2
+        trainset = CelebA(root=os.path.join('exp', 'datasets', 'celeba'), split='train',
+            transform=transform_train, download=False)
     else:
         raise NotImplementedError
     
@@ -270,10 +284,12 @@ def main(args):
             indices_full = np.arange(60000)
         elif  dataset == 'cifar_10':
             indices_full = np.arange(50000)
+        elif  dataset == 'celeba':
+            indices_full = len(trainset)
         np.random.shuffle(indices_full)
-        indices_slice = indices_full[:500]
-        np.savetxt('index_500.txt', indices_slice, fmt='%i')
-    indices = np.loadtxt('index_500.txt', dtype=np.int_)
+        indices_slice = indices_full[:20000]
+        np.savetxt('index_20k.txt', indices_slice, fmt='%i')
+    indices = np.loadtxt('index_20k.txt', dtype=np.int_)
     trainset = torch.utils.data.Subset(trainset, indices)
 
 
@@ -319,6 +335,13 @@ def main(args):
             real_data = real_data.view(-1, IMG_DIM)
             real_data = real_data.to(device)
             real_y = real_y.to(device)
+
+            ###########################
+            if dataset == 'celeba':
+            gender = 20
+            real_y = real_y[:, gender]
+            ##################################################
+
             real_data_v = autograd.Variable(real_data)
 
             ### train with real
@@ -406,10 +429,10 @@ def main(args):
         if iters % args.vis_step == 0:
             if dataset == 'mnist':
                 generate_image_mnist(iters, netGS, fix_noise, save_dir, device0)
-            elif dataset == 'cifar_100':
-                generate_image_cifar100(iters, netGS, fix_noise, save_dir, device0)
             elif dataset == 'cifar_10':
                 generate_image_cifar10_ch3(str(iters+0), netGS, fix_noise, save_dir, device0)
+            elif dataset == 'celeba':
+                generate_image_celeba(str(iters+0), netGS, fix_noise, save_dir, device0)
 
         if iters % args.save_step==0:
             ### save model
@@ -430,5 +453,6 @@ if __name__ == '__main__':
     args = parse_arguments()
     save_config(args)
     main(args)
+
 
 
