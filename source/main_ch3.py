@@ -18,6 +18,7 @@ from config import *
 from models import *
 from utils import *
 
+from datasets.celeba import CelebA
 
 from ops import exp_mov_avg
 #from torchsummary import summary
@@ -186,10 +187,10 @@ def main(args):
         netG.apply(weights_init)
     elif dataset == 'celeba':
         ngpu = 1
-        netG = Generator(ngpu)
+        netG = Generator_celeba(ngpu)
 
         # Handle multi-gpu if desired
-        if (device.type == 'cuda') and (ngpu > 1):
+        if (device0.type == 'cuda') and (ngpu > 1):
             netG = nn.DataParallel(netG, list(range(ngpu)))
 
         # Apply the weights_init function to randomly initialize all weights
@@ -209,7 +210,7 @@ def main(args):
             netD = Discriminator_celeba(ngpu)
 
             # Handle multi-gpu if desired
-            if (device.type == 'cuda') and (ngpu > 1):
+            if (device0.type == 'cuda') and (ngpu > 1):
                 netD = nn.DataParallel(netD, list(range(ngpu)))
 
             # Apply the weights_init function to randomly initialize all weights
@@ -273,7 +274,7 @@ def main(args):
     elif dataset == 'celeba':
         IMG_DIM = 64*64*3
         NUM_CLASSES = 2
-        trainset = CelebA(root=os.path.join('exp', 'datasets', 'celeba'), split='train',
+        trainset = CelebA(root=os.path.join('../exp', 'datasets', 'celeba'), split='train',
             transform=transform_train, download=False)
     else:
         raise NotImplementedError
@@ -285,7 +286,7 @@ def main(args):
         elif  dataset == 'cifar_10':
             indices_full = np.arange(50000)
         elif  dataset == 'celeba':
-            indices_full = len(trainset)
+            indices_full = np.arange(len(trainset))
         np.random.shuffle(indices_full)
         indices_slice = indices_full[:20000]
         np.savetxt('index_20k.txt', indices_slice, fmt='%i')
@@ -338,7 +339,7 @@ def main(args):
 
             ###########################
             if dataset == 'celeba':
-            gender = 20
+                gender = 20
             real_y = real_y[:, gender]
             ##################################################
 

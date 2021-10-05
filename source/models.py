@@ -660,8 +660,13 @@ ndf = 64
 
 class Generator_celeba(nn.Module):
     def __init__(self, ngpu):
-        super(Generator, self).__init__()
+        super(Generator_celeba, self).__init__()
         self.ngpu = ngpu
+        self.num_classes = 2
+        self.z_dim = 100
+
+        self.emb = nn.Embedding(2, 50)
+        self.fc = nn.Linear(self.z_dim + 50, self.z_dim * 1 * 1)
         self.main = nn.Sequential(
             # input is Z, going into a convolution
             nn.ConvTranspose2d( nz, ngf * 8, 4, 1, 0, bias=False),
@@ -685,16 +690,26 @@ class Generator_celeba(nn.Module):
             # state size. (nc) x 64 x 64
         )
 
+    def forward(self, input, y):
+        #import ipdb;ipdb.set_trace()
+        #y_onehot = one_hot_embedding(y, self.num_classes).long()
+        z_in = torch.cat([input, self.emb(y)], dim=1)
+        output = self.fc(z_in)
+        output = output.view(-1, self.z_dim, 1, 1)
+        output = nn.ReLU(True)(output)
+        return self.main(output)
+
+class Unflatten_D(nn.Module):
     def forward(self, input):
-        return self.main(input)
+        return input.view(input.size()[0], 3, 64, 64)
 
 class Discriminator_celeba(nn.Module):
     def __init__(self, ngpu):
-        super(Discriminator, self).__init__()
+        super(Discriminator_celeba, self).__init__()
         self.ngpu = ngpu
+        self.conv1 = nn.Conv2d(nc *2, ndf, 4, 2, 1, bias=False)
         self.main = nn.Sequential(
             # input is (nc) x 64 x 64
-            nn.Conv2d(nc, ndf, 4, 2, 1, bias=False),
             nn.LeakyReLU(0.2, inplace=True),
             # state size. (ndf) x 32 x 32
             nn.Conv2d(ndf, ndf * 2, 4, 2, 1, bias=False),
@@ -713,5 +728,46 @@ class Discriminator_celeba(nn.Module):
             nn.Sigmoid()
         )
 
-    def forward(self, input):
-        return self.main(input)
+        
+        self.label_emb = nn.Sequential(
+            nn.Embedding(2, 50),
+            nn.Linear(50, 3 * 64 * 64),
+            Unflatten_D(),
+        )
+
+    def forward(self, input, y):
+        input = input.view(-1, 3, 64, 64)
+        
+        y = self.label_emb(y)
+        input = torch.cat((input, y), axis=1)
+
+        return self.main(self.conv1(input))
+
+    def calc_gradient_penalty(self, real_data, fake_data, y, L_gp, device):
+        '''
+        compute gradient penalty term
+        :param real_data:
+        :param fake_data:
+        :param y:
+        :param L_gp:
+        :param device:
+        :return:
+        '''
+        batchsize = real_data.shape[0]
+        real_data = real_data.to(device).view(-1, 3, 64, 64)
+        fake_data = fake_data.to(device)
+        y = y.to(device)
+        alpha = torch.rand(batchsize, 1)
+        alpha = alpha.to(device)
+
+        interpolates = alpha * real_data + ((1 - alpha) * fake_data)
+        interpolates = interpolates.to(device)
+        interpolates = autograd.Variable(interpolates, requires_grad=True)
+        disc_interpolates = self.forward(interpolates, y)
+
+        gradients = autograd.grad(outputs=disc_interpolates, inputs=interpolates,
+                                  grad_outputs=torch.ones(disc_interpolates.size()).to(device),
+                                  create_graph=True, retain_graph=True, only_inputs=True)[0]
+        gradients_norm = gradients.norm(2, dim=1)
+        gradient_penalty = ((gradients_norm - 1) ** 2).mean() * L_gp
+        return gradient_penalty
