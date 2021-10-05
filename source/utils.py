@@ -83,9 +83,9 @@ def generate_image_cifar10(iter, netG, fix_noise, save_dir, device, num_classes=
     del label, noise, sample
     torch.cuda.empty_cache()
 
-
-def generate_image_cifar10_ch3(iter, netG, fix_noise, save_dir, device, num_classes=10,
-                   img_w=32, img_h=32):
+    
+def generate_image_celeba(iter, netG, fix_noise, save_dir, device, num_classes=2,
+                   img_w=64, img_h=64):
     batchsize = fix_noise.size()[0]
     nrows = 10
     ncols = num_classes
@@ -112,7 +112,6 @@ def generate_image_cifar10_ch3(iter, netG, fix_noise, save_dir, device, num_clas
 
     del label, noise, sample
     torch.cuda.empty_cache()
-
 
 def get_device_id(id, num_discriminators, num_gpus):
     partitions = np.linspace(0, 1, num_gpus, endpoint=False)[1:]
