@@ -1,13 +1,8 @@
 # result & data folders
 */results
 *$results
-results*
-*/datasets
-*$datasets
-datasets*
-*$data
-*/data
-data*
+results/
+data/
 exp/
 
 *.tar.gz
