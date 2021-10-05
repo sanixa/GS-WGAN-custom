@@ -357,7 +357,7 @@ def main(args):
         del real_data, real_y, fake, noise, inputv, D_real, D_fake, logit_cost, gradient_penalty
         torch.cuda.empty_cache()
         
-        for iter_d in range(3):
+        for iter_d in range(2):
         ############################
         # Update G network
         ###########################

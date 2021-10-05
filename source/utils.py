@@ -42,6 +42,7 @@ def generate_image_mnist(iter, netG, fix_noise, save_dir, device, num_classes=10
         sample_list.append(sample)
     samples = np.transpose(np.array(sample_list), [1, 0, 2, 3])
     samples = np.reshape(samples, [nrows * ncols, img_w, img_h])
+    samples = np.clip(samples, 0, 1)
 
     plt.figure(figsize=figsize)
     for i in range(nrows * ncols):
@@ -70,6 +71,7 @@ def generate_image_cifar10(iter, netG, fix_noise, save_dir, device, num_classes=
         sample_list.append(sample)
     samples = np.transpose(np.array(sample_list), [1, 0, 2, 3])
     samples = np.reshape(samples, [nrows * ncols, img_w, img_h])
+    samples = np.clip(samples, 0, 1)
 
     plt.figure(figsize=figsize)
     for i in range(nrows * ncols):
@@ -99,6 +101,7 @@ def generate_image_cifar10_ch3(iter, netG, fix_noise, save_dir, device, num_clas
         sample_list.append(sample)
     samples = np.transpose(np.array(sample_list), [1, 0, 3, 4, 2])
     samples = np.reshape(samples, [nrows * ncols, img_w, img_h, 3])
+    samples = np.clip(samples, 0, 1)
 
     plt.figure(figsize=figsize)
     for i in range(nrows * ncols):
