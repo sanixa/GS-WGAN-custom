@@ -51,7 +51,7 @@ class CelebA(VisionDataset):
                  split="train",
                  target_type="attr",
                  transform=None, target_transform=None,
-                 download=True):
+                 download=True, custom_subset=False):
         import pandas
         super(CelebA, self).__init__(root)
         self.split = split
@@ -96,8 +96,19 @@ class CelebA(VisionDataset):
 
         with open(os.path.join(self.root, self.base_folder, "list_attr_celeba.txt"), "r") as f:
             self.attr = pandas.read_csv(f, delim_whitespace=True, header=1)
+        
+        mask = [False for i in range(len(splits[1]))]
+        if custom_subset:
+            with open('index_20k.txt') as f:
+                lines = f.readlines()
+            for i in range(len(lines)):
+                lines[i] = int(lines[i][:-1])
+            for i in range(len(splits[1])):
+                if i in lines:
+                    mask[i-1] = True
+        else:
+            mask = (splits[1] == split)
 
-        mask = (splits[1] == split)
         self.filename = splits[mask].index.values
         self.identity = torch.as_tensor(self.identity[mask].values)
         self.bbox = torch.as_tensor(self.bbox[mask].values)

@@ -149,7 +149,7 @@ def main(args):
     latent_type = args.latent_type
     load_dir = args.load_dir
     save_dir = args.save_dir
-    if_dp = (args.dp > 0.)
+    if_dp = (args.noise_multiplier > 0.)
     gen_arch = args.gen_arch
     num_gpus = args.num_gpus
 
@@ -215,7 +215,7 @@ def main(args):
 
             # Apply the weights_init function to randomly initialize all weights
             #  to mean=0, stdev=0.2.
-            netD.apply(weights_init)
+            #netD.apply(weights_init)
         netD_list.append(netD)
 
     ### Load pre-trained discriminators
@@ -236,9 +236,9 @@ def main(args):
     optimizerD_list = []
     for i in range(num_discriminators):
         netD = netD_list[i]
-        optimizerD = optim.Adam(netD.parameters(), lr=4e-4, betas=(0.5, 0.999))
+        optimizerD = optim.Adam(netD.parameters(), lr=1e-4, betas=(0.5, 0.999))
         optimizerD_list.append(optimizerD)
-    optimizerG = optim.Adam(netG.parameters(), lr=1e-4, betas=(0.5, 0.999))
+    optimizerG = optim.Adam(netG.parameters(), lr=2e-4, betas=(0.5, 0.999))
 
     ### Data loaders
     if dataset == 'mnist':
@@ -274,8 +274,8 @@ def main(args):
     elif dataset == 'celeba':
         IMG_DIM = 64*64*3
         NUM_CLASSES = 2
-        trainset = CelebA(root=os.path.join('../exp', 'datasets', 'celeba'), split='train',
-            transform=transform_train, download=False)
+        trainset = CelebA(root=os.path.join('../data'), split='train', #'/work/u5366584/exp/datasets/celeba/'
+            transform=transform_train, download=False, custom_subset=True)
     else:
         raise NotImplementedError
     
@@ -290,8 +290,8 @@ def main(args):
         np.random.shuffle(indices_full)
         indices_slice = indices_full[:20000]
         np.savetxt('index_20k.txt', indices_slice, fmt='%i')
-    indices = np.loadtxt('index_20k.txt', dtype=np.int_)
-    trainset = torch.utils.data.Subset(trainset, indices)
+    #indices = np.loadtxt('index_20k.txt', dtype=np.int_)
+    #trainset = torch.utils.data.Subset(trainset, indices)
 
 
     print('creat indices file')

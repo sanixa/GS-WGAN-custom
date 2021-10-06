@@ -641,10 +641,10 @@ class DiscriminatorDCGAN_cifar_TS(nn.Module):
         return gradient_penalty
 
 #####################################################################################################################
-#####################################################################################################################
-#####################################################celeba##########################################################
-#####################################################################################################################
-#####################################################################################################################
+# ####################################################################################################################
+# ####################################################celeba##########################################################
+# ####################################################################################################################
+# ####################################################################################################################
 # Number of channels in the training images. For color images this is 3
 nc = 3
 
@@ -665,8 +665,8 @@ class Generator_celeba(nn.Module):
         self.num_classes = 2
         self.z_dim = 100
 
-        self.emb = nn.Embedding(2, 50)
-        self.fc = nn.Linear(self.z_dim + 50, self.z_dim * 1 * 1)
+        self.emb = nn.Embedding(2, 10)
+        self.fc = nn.Linear(self.z_dim + 10, self.z_dim * 1 * 1)
         self.main = nn.Sequential(
             # input is Z, going into a convolution
             nn.ConvTranspose2d( nz, ngf * 8, 4, 1, 0, bias=False),
@@ -701,37 +701,37 @@ class Generator_celeba(nn.Module):
 
 class Unflatten_D(nn.Module):
     def forward(self, input):
-        return input.view(input.size()[0], 3, 64, 64)
+        return input.view(input.size()[0], 1, 64, 64)
 
 class Discriminator_celeba(nn.Module):
     def __init__(self, ngpu):
         super(Discriminator_celeba, self).__init__()
         self.ngpu = ngpu
-        self.conv1 = nn.Conv2d(nc *2, ndf, 4, 2, 1, bias=False)
+        self.conv1 = SpectralNorm(nn.Conv2d(nc +1, ndf, 4, 2, 1, bias=False))
         self.main = nn.Sequential(
             # input is (nc) x 64 x 64
             nn.LeakyReLU(0.2, inplace=True),
             # state size. (ndf) x 32 x 32
-            nn.Conv2d(ndf, ndf * 2, 4, 2, 1, bias=False),
+            SpectralNorm(nn.Conv2d(ndf, ndf * 2, 4, 2, 1, bias=False)),
             nn.BatchNorm2d(ndf * 2),
             nn.LeakyReLU(0.2, inplace=True),
             # state size. (ndf*2) x 16 x 16
-            nn.Conv2d(ndf * 2, ndf * 4, 4, 2, 1, bias=False),
+            SpectralNorm(nn.Conv2d(ndf * 2, ndf * 4, 4, 2, 1, bias=False)),
             nn.BatchNorm2d(ndf * 4),
             nn.LeakyReLU(0.2, inplace=True),
             # state size. (ndf*4) x 8 x 8
-            nn.Conv2d(ndf * 4, ndf * 8, 4, 2, 1, bias=False),
+            SpectralNorm(nn.Conv2d(ndf * 4, ndf * 8, 4, 2, 1, bias=False)),
             nn.BatchNorm2d(ndf * 8),
             nn.LeakyReLU(0.2, inplace=True),
             # state size. (ndf*8) x 4 x 4
-            nn.Conv2d(ndf * 8, 1, 4, 1, 0, bias=False),
+            SpectralNorm(nn.Conv2d(ndf * 8, 1, 4, 1, 0, bias=False)),
             nn.Sigmoid()
         )
 
         
         self.label_emb = nn.Sequential(
-            nn.Embedding(2, 50),
-            nn.Linear(50, 3 * 64 * 64),
+            nn.Embedding(2, 10),
+            nn.Linear(10, 1 * 64 * 64),
             Unflatten_D(),
         )
 
@@ -753,9 +753,10 @@ class Discriminator_celeba(nn.Module):
         :param device:
         :return:
         '''
+        
+        real_data = real_data.to(device)
         batchsize = real_data.shape[0]
-        real_data = real_data.to(device).view(-1, 3, 64, 64)
-        fake_data = fake_data.to(device)
+        fake_data = fake_data.to(device).view(-1, 3* 64* 64)
         y = y.to(device)
         alpha = torch.rand(batchsize, 1)
         alpha = alpha.to(device)

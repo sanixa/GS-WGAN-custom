@@ -211,7 +211,7 @@ def main(args):
             netD = DiscriminatorDCGAN()
         elif dataset == 'cifar_10':
             netD = DiscriminatorDCGAN_cifar()
-            netD.apply(weights_init)
+            #netD.apply(weights_init)
             #netD.load_state_dict(torch.load('../results/cifar_10/main/d500_i40000_10/netD_40000.pth'))
         netD_list.append(netD)
 
