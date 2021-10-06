@@ -665,8 +665,6 @@ class Generator_celeba(nn.Module):
         self.num_classes = 2
         self.z_dim = 100
 
-        self.emb = nn.Embedding(2, 10)
-        self.fc = nn.Linear(self.z_dim + 10, self.z_dim * 1 * 1)
         self.main = nn.Sequential(
             # input is Z, going into a convolution
             nn.ConvTranspose2d( nz, ngf * 8, 4, 1, 0, bias=False),
@@ -690,56 +688,40 @@ class Generator_celeba(nn.Module):
             # state size. (nc) x 64 x 64
         )
 
-    def forward(self, input, y):
-        #import ipdb;ipdb.set_trace()
-        #y_onehot = one_hot_embedding(y, self.num_classes).long()
-        z_in = torch.cat([input, self.emb(y)], dim=1)
-        output = self.fc(z_in)
-        output = output.view(-1, self.z_dim, 1, 1)
-        output = nn.ReLU(True)(output)
-        return self.main(output)
-
-class Unflatten_D(nn.Module):
     def forward(self, input):
-        return input.view(input.size()[0], 1, 64, 64)
+        return self.main(input)
+
 
 class Discriminator_celeba(nn.Module):
     def __init__(self, ngpu):
         super(Discriminator_celeba, self).__init__()
         self.ngpu = ngpu
-        self.conv1 = SpectralNorm(nn.Conv2d(nc +1, ndf, 4, 2, 1, bias=False))
+        self.conv1 = nn.Conv2d(nc, ndf, 4, 2, 1, bias=False)
         self.main = nn.Sequential(
             # input is (nc) x 64 x 64
             nn.LeakyReLU(0.2, inplace=True),
             # state size. (ndf) x 32 x 32
-            SpectralNorm(nn.Conv2d(ndf, ndf * 2, 4, 2, 1, bias=False)),
+            nn.Conv2d(ndf, ndf * 2, 4, 2, 1, bias=False),
             nn.BatchNorm2d(ndf * 2),
             nn.LeakyReLU(0.2, inplace=True),
             # state size. (ndf*2) x 16 x 16
-            SpectralNorm(nn.Conv2d(ndf * 2, ndf * 4, 4, 2, 1, bias=False)),
+            nn.Conv2d(ndf * 2, ndf * 4, 4, 2, 1, bias=False),
             nn.BatchNorm2d(ndf * 4),
             nn.LeakyReLU(0.2, inplace=True),
             # state size. (ndf*4) x 8 x 8
-            SpectralNorm(nn.Conv2d(ndf * 4, ndf * 8, 4, 2, 1, bias=False)),
+            nn.Conv2d(ndf * 4, ndf * 8, 4, 2, 1, bias=False),
             nn.BatchNorm2d(ndf * 8),
             nn.LeakyReLU(0.2, inplace=True),
             # state size. (ndf*8) x 4 x 4
-            SpectralNorm(nn.Conv2d(ndf * 8, 1, 4, 1, 0, bias=False)),
+            nn.Conv2d(ndf * 8, 1, 4, 1, 0, bias=False),
             nn.Sigmoid()
         )
 
         
-        self.label_emb = nn.Sequential(
-            nn.Embedding(2, 10),
-            nn.Linear(10, 1 * 64 * 64),
-            Unflatten_D(),
-        )
 
-    def forward(self, input, y):
+
+    def forward(self, input):
         input = input.view(-1, 3, 64, 64)
-        
-        y = self.label_emb(y)
-        input = torch.cat((input, y), axis=1)
 
         return self.main(self.conv1(input))
 
@@ -772,3 +754,4 @@ class Discriminator_celeba(nn.Module):
         gradients_norm = gradients.norm(2, dim=1)
         gradient_penalty = ((gradients_norm - 1) ** 2).mean() * L_gp
         return gradient_penalty
+

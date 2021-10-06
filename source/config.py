@@ -36,7 +36,6 @@ def parse_arguments():
     parser.add_argument('--run', '-run', type=int, default=1, help='index number of run')
     parser.add_argument('--exp_name', '-name', type=str,
                         help='output folder name; will be automatically generated if not specified')
-    parser.add_argument('--dp', '-dp', type=int, default=1, help='usage of DP')
     parser.add_argument('--collect_iter', '-collect_iter', type=int, default=1000, help='collection period')
     parser.add_argument('--update-train-dataset', '-update', type=int, default=0, help='update training dataset')
 
@@ -54,7 +53,7 @@ def save_config(args):
     '''
     ### set up experiment name
     if args.exp_name is None:
-        exp_name = '{}_Ndis{}_Noise{}_Zdim{}_Mdim{}_BS{}_Lgp{}_Lep{}_Diters{}_{}_Run{}_usageofDP{}'.format(
+        exp_name = '{}_Ndis{}_Noise{}_Zdim{}_Mdim{}_BS{}_Lgp{}_Lep{}_Diters{}_{}_Run{}'.format(
             args.gen_arch,
             args.num_discriminators,
             args.noise_multiplier,
@@ -65,8 +64,7 @@ def save_config(args):
             args.L_epsilon,
             args.critic_iters,
             args.latent_type,
-            args.run,
-            args.dp)
+            args.run)
         args.exp_name = exp_name
 
     if args.pretrain:
@@ -102,6 +100,7 @@ def load_config(args):
     ### load config
     config = pickle.load(open(os.path.join(save_dir, 'params.pkl'), 'rb'))
     return config
+
 
 
 
