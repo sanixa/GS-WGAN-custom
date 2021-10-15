@@ -696,24 +696,24 @@ class Discriminator_celeba(nn.Module):
     def __init__(self, ngpu):
         super(Discriminator_celeba, self).__init__()
         self.ngpu = ngpu
-        self.conv1 = nn.Conv2d(nc, ndf, 4, 2, 1, bias=False)
+        self.conv1 = SpectralNorm(nn.Conv2d(nc, ndf, 4, 2, 1, bias=False))
         self.main = nn.Sequential(
             # input is (nc) x 64 x 64
             nn.LeakyReLU(0.2, inplace=True),
             # state size. (ndf) x 32 x 32
-            nn.Conv2d(ndf, ndf * 2, 4, 2, 1, bias=False),
+            SpectralNorm(nn.Conv2d(ndf, ndf * 2, 4, 2, 1, bias=False)),
             nn.BatchNorm2d(ndf * 2),
             nn.LeakyReLU(0.2, inplace=True),
             # state size. (ndf*2) x 16 x 16
-            nn.Conv2d(ndf * 2, ndf * 4, 4, 2, 1, bias=False),
+            SpectralNorm(nn.Conv2d(ndf * 2, ndf * 4, 4, 2, 1, bias=False)),
             nn.BatchNorm2d(ndf * 4),
             nn.LeakyReLU(0.2, inplace=True),
             # state size. (ndf*4) x 8 x 8
-            nn.Conv2d(ndf * 4, ndf * 8, 4, 2, 1, bias=False),
+            SpectralNorm(nn.Conv2d(ndf * 4, ndf * 8, 4, 2, 1, bias=False)),
             nn.BatchNorm2d(ndf * 8),
             nn.LeakyReLU(0.2, inplace=True),
             # state size. (ndf*8) x 4 x 4
-            nn.Conv2d(ndf * 8, 1, 4, 1, 0, bias=False),
+            SpectralNorm(nn.Conv2d(ndf * 8, 1, 4, 1, 0, bias=False)),
             nn.Sigmoid()
         )
 
@@ -725,12 +725,11 @@ class Discriminator_celeba(nn.Module):
 
         return self.main(self.conv1(input))
 
-    def calc_gradient_penalty(self, real_data, fake_data, y, L_gp, device):
+    def calc_gradient_penalty(self, real_data, fake_data, L_gp, device):
         '''
         compute gradient penalty term
         :param real_data:
         :param fake_data:
-        :param y:
         :param L_gp:
         :param device:
         :return:
@@ -739,14 +738,13 @@ class Discriminator_celeba(nn.Module):
         real_data = real_data.to(device)
         batchsize = real_data.shape[0]
         fake_data = fake_data.to(device).view(-1, 3* 64* 64)
-        y = y.to(device)
         alpha = torch.rand(batchsize, 1)
         alpha = alpha.to(device)
 
         interpolates = alpha * real_data + ((1 - alpha) * fake_data)
         interpolates = interpolates.to(device)
         interpolates = autograd.Variable(interpolates, requires_grad=True)
-        disc_interpolates = self.forward(interpolates, y)
+        disc_interpolates = self.forward(interpolates)
 
         gradients = autograd.grad(outputs=disc_interpolates, inputs=interpolates,
                                   grad_outputs=torch.ones(disc_interpolates.size()).to(device),

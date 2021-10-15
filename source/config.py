@@ -9,7 +9,7 @@ RESULT_DIR = './../results'
 def parse_arguments():
     parser = argparse.ArgumentParser()
     parser.add_argument('--random_seed', '-s', type=int, default=1, help='random seed')
-    parser.add_argument('--dataset', '-data', type=str, default='mnist', choices=['mnist', 'cifar_10', 'celeba'],
+    parser.add_argument('--dataset', '-data', type=str, default='mnist', choices=['mnist', 'cifar_10', 'celeba', 'cifar_100'],
                         help=' dataset name')
     parser.add_argument('--num_discriminators', '-ndis', type=int, default=1000, help='number of discriminators')
     parser.add_argument('--noise_multiplier', '-noise', type=float, default=0.175935, help='noise multiplier') #0.175935 for eps1000 #0.427 for eps10 #0.86 for eps1

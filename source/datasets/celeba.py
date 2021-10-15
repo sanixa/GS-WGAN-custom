@@ -64,7 +64,8 @@ class CelebA(VisionDataset):
 
         if download:
             self.download()
-
+            
+        torch.set_default_tensor_type(torch.FloatTensor)
         # if not self._check_integrity():
         #     raise RuntimeError('Dataset not found or corrupted.' +
         #                        ' You can use download=True to download it')
@@ -143,7 +144,6 @@ class CelebA(VisionDataset):
 
     def __getitem__(self, index):
         X = PIL.Image.open(os.path.join(self.root, self.base_folder, "img_align_celeba", self.filename[index]))
-
         target = []
         for t in self.target_type:
             if t == "attr":

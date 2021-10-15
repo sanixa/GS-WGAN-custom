@@ -139,7 +139,7 @@ def main(args):
     num_discriminators = args.num_discriminators
     noise_multiplier = args.noise_multiplier
     z_dim = args.z_dim
-    if dataset == 'celeba':
+    if dataset == 'cifar_100':
         z_dim = 100
     model_dim = args.model_dim
     batchsize = args.batchsize
@@ -172,7 +172,7 @@ def main(args):
 
     ### Set up models
     print('gen_arch:' + gen_arch)
-    if dataset == 'celeba':
+    if dataset == 'cifar_100':
         ngpu = 1
         netG = Generator_celeba(ngpu).to(device0)
         #netG.load_state_dict(torch.load('../results/celeba/main/d_1_2e-4_g_1_2e-4_SN_full/netG_15000.pth'))
@@ -186,7 +186,7 @@ def main(args):
         netG.apply(weights_init)
 
     netGS = copy.deepcopy(netG).to(device0)
-    if dataset == 'celeba':
+    if dataset == 'cifar_100':
         ngpu = 1
         netD = Discriminator_celeba(ngpu).to(device0)
         #netD.load_state_dict(torch.load('../results/celeba/main/d_1_2e-4_g_1_2e-4_SN_full/netD_15000.pth'))
@@ -204,7 +204,7 @@ def main(args):
     optimizerG = optim.Adam(netG.parameters(), lr=2e-4, betas=(0.5, 0.99))
 
     ### Data loaders
-    if dataset == 'celeba':
+    if dataset == 'cifar_100':
         transform_train = transforms.Compose([
         transforms.Resize(64),
         transforms.CenterCrop(64),
@@ -212,24 +212,18 @@ def main(args):
         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
         ])
 
-    if dataset == 'celeba':
+    if dataset == 'cifar_100':
         IMG_DIM = 64*64*3
-        NUM_CLASSES = 2
-        trainset = CelebA(root=os.path.join('/work/u5366584/exp/datasets/celeba'), split='train',
-            transform=transform_train, download=False)#, custom_subset=True)
-        #trainset = CelebA(root=os.path.join('../data'), split='train',
-        #    transform=transform_train, download=False, custom_subset=True)
+        NUM_CLASSES = 100
+        trainset = datasets.CIFAR100(root=os.path.join('../data'), train=True,
+            transform=transform_train, download=True)
+
     else:
         raise NotImplementedError
     
     ###fix sub-training set (fix to 10000 training samples)
     if args.update_train_dataset:
-        if dataset == 'mnist':
-            indices_full = np.arange(60000)
-        elif  dataset == 'cifar_10':
-            indices_full = np.arange(50000)
-        elif  dataset == 'celeba':
-            indices_full = np.arange(len(trainset))
+        indices_full = np.arange(len(trainset))
         np.random.shuffle(indices_full)
         
         '''
@@ -241,7 +235,7 @@ def main(args):
         indices_slice = indices_ref[:20000]
         np.savetxt('index_20k_ref.txt', indices_slice, fmt='%i')   ##ref index is disjoint to original index
         '''
-        
+        '''
         ### growing dataset
         indices = np.loadtxt('index_20k.txt', dtype=np.int_)
         remove_idx = [np.argwhere(indices_full==x) for x in indices]
@@ -250,11 +244,14 @@ def main(args):
         indices_rest = indices_rest[:20000]
         indices_slice = np.concatenate((indices, indices_rest), axis=0)
         np.savetxt('index_40k.txt', indices_slice, fmt='%i')
-    indices = np.loadtxt('index_100k.txt', dtype=np.int_)
-    trainset = torch.utils.data.Subset(trainset, indices)
+        '''
+        indices_slice = indices_full[:20000]
+        np.savetxt('index_20k_cifar100.txt', indices_slice, fmt='%i')
+    #indices = np.loadtxt('index_20k_cifar100.txt', dtype=np.int_)
+    #trainset = torch.utils.data.Subset(trainset, indices)
     print(len(trainset))
     
-    workers = 4
+    workers = 0
     dataloader = torch.utils.data.DataLoader(trainset, batch_size=batchsize,
                                              shuffle=True, num_workers=workers)
         
@@ -359,7 +356,7 @@ def main(args):
                                                                         errD.item(),
                                                                         ))
             if iters % args.vis_step == 0:
-                if dataset == 'celeba':
+                if dataset == 'cifar_100':
                     generate_image_celeba(str(iters+0), netGS, fixed_noise, save_dir, device0)
 
             if iters % args.save_step==0:
